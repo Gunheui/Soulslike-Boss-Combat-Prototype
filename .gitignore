@@ -1,0 +1,56 @@
+# ============================================
+# Unity 6 / URP — generated & local-only
+# ============================================
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Asset meta files for ignored folders should NOT be committed,
+# but DO keep .meta files for committed assets (Unity needs them).
+
+# Visual Studio / Rider / IDE
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.tmp
+*.pdb.meta
+*.mdb.meta
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Crash reports
+sysinfo.txt
+crashlytics-build.properties
+
+# ============================================
+# Claude Code 하네스 — 별도 레포로 휴대 (push 안 함)
+# ============================================
+.claude/
+CLAUDE.md
+_workspace/
+_workspace_prev/
+
+# 메모리(로컬 전용)
+.claude/projects/
+
+# ============================================
+# 아트 정책: 추후 결정 (스토어 에셋 도입 시 여기에 경로 추가)
+#   예) Assets/_Project/Art/ThirdParty/
+# ============================================

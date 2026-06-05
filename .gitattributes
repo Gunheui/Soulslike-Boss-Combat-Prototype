@@ -1,0 +1,28 @@
+# 자동 텍스트 감지 + 저장소는 LF 통일 (멀티 머신 줄바꿈 일관성)
+* text=auto eol=lf
+
+# C#
+*.cs text diff=csharp
+
+# Unity 직렬화(YAML) — Unity Smart Merge 사용
+*.unity          merge=unityyamlmerge eol=lf
+*.prefab         merge=unityyamlmerge eol=lf
+*.asset          merge=unityyamlmerge eol=lf
+*.meta           merge=unityyamlmerge eol=lf
+*.controller     merge=unityyamlmerge eol=lf
+*.anim           merge=unityyamlmerge eol=lf
+*.mat            merge=unityyamlmerge eol=lf
+*.physicMaterial merge=unityyamlmerge eol=lf
+
+# 바이너리 (아트 도입 시 확장)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.fbx  binary
+*.obj  binary
+*.wav  binary
+*.mp3  binary
+*.ogg  binary
+*.dll  binary
+*.unitypackage binary
