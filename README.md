@@ -20,20 +20,18 @@ Unity 6 (URP) · 1인 개발 · 포트폴리오.
 - Input System, AI Navigation, Test Framework
 - 데이터 주도 설계(ScriptableObject), FSM, 애니메이션 구동 판정(Animation Event)
 
-## 설계 문서
+## 설계 원칙
 
-전투 기획부터 시스템 아키텍처, 개발 로드맵까지 → **[`Docs/`](Docs/README.md)**
+- **데이터 주도** — 손맛 수치는 ScriptableObject/Inspector로 노출, 재컴파일 없이 튜닝.
+- **경계면 계약** — `DamageInfo` 한 방향 흐름(공격자 Hitbox → 방어자 Hurtbox → Resolver → Health/Posture).
+- **애니메이션 구동 판정** — 히트박스·i-frame·퍼펙트가드 윈도우는 Animation Event로 제어("보이는 것 = 맞는 것").
+- **수직 슬라이스** — 매 마일스톤 끝에 플레이 가능한 빌드.
 
-| | |
-|--|--|
-| [기획 (GDD)](Docs/01-Game-Design-Document.md) | 핵심 루프·동사·메커니즘 |
-| [전투 파라미터](Docs/02-Combat-Parameters.md) | 손맛 수치표 |
-| [보스 설계](Docs/03-Boss-Design.md) | 8패턴·페이즈 |
-| [시스템 아키텍처](Docs/04-System-Architecture.md) | 컴포넌트·의존 구조 |
-| [상태 머신](Docs/05-State-Machines.md) | 플레이어/보스 FSM |
-| [데이터 모델](Docs/06-Data-Model.md) | ScriptableObject 스키마 |
-| [데미지 파이프라인](Docs/07-Damage-Pipeline.md) | 판정 흐름 |
-| [개발 로드맵](Docs/08-Development-Roadmap.md) | M0~M8 마일스톤 |
+## 개발 범위
+
+MVP = 플레이어 코어 전투 + 보스 1체. 기획(GDD·전투 파라미터·보스 8패턴) → 시스템 아키텍처(FSM·데이터 모델·데미지 파이프라인) → 개발 로드맵(M0~M8 마일스톤)까지 설계 완료, 구현 진행 중.
+
+> 상세 설계 문서는 로컬 전용으로 관리됩니다. 포트폴리오 검토용 공유는 별도 요청 바랍니다.
 
 ## 빌드
 
