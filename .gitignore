@@ -50,6 +50,9 @@ _workspace_prev/
 # 메모리(로컬 전용)
 .claude/projects/
 
+# Serena MCP 캐시(로컬 전용)
+.serena/
+
 # 일정/설계 정리본 — 로컬 전용(일정 트래킹은 Notion 칸반으로 이관, 2026-06-06)
 Docs/
 
