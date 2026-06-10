@@ -25,6 +25,9 @@ namespace Project.Player
         /// <summary>가드 버튼을 누르고 있는가. Guard 상태 유지 판정용(M4).</summary>
         public bool GuardHeld { get; private set; }
 
+        /// <summary>달리기(Sprint) 버튼을 누르고 있는가. Locomotion이 매 프레임 읽어 보행/질주 속도 분기(M1-C). 전용 액션(LeftShift/buttonEast).</summary>
+        public bool SprintHeld { get; private set; }
+
         /// <summary>가드를 마지막으로 "누른" 시각(Time.time). PG 윈도우(now - 이 값 ≤ 8f) 기준점(M4).</summary>
         public float GuardPressedTime { get; private set; }
 
@@ -66,6 +69,8 @@ namespace Project.Player
             _controls.Player.LightAttack.performed += OnLightAttack;
             _controls.Player.Guard.performed += OnGuardPressed;
             _controls.Player.Guard.canceled += OnGuardReleased;
+            _controls.Player.Sprint.performed += OnSprintPressed;
+            _controls.Player.Sprint.canceled += OnSprintReleased;
         }
 
         private void OnEnable() => _controls.Player.Enable();
@@ -104,5 +109,8 @@ namespace Project.Player
             GuardHeld = false;
             Debug.Log("[Input] Guard released");
         }
+
+        private void OnSprintPressed(InputAction.CallbackContext ctx) => SprintHeld = true;
+        private void OnSprintReleased(InputAction.CallbackContext ctx) => SprintHeld = false;
     }
 }

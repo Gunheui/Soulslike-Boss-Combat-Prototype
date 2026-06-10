@@ -408,11 +408,11 @@ GameObject:
   - component: {fileID: 789876836}
   - component: {fileID: 789876835}
   - component: {fileID: 789876834}
-  - component: {fileID: 789876833}
   - component: {fileID: 789876832}
   - component: {fileID: 789876837}
   - component: {fileID: 789876839}
   - component: {fileID: 789876838}
+  - component: {fileID: 789876840}
   m_Layer: 0
   m_Name: Player_PlaceHolder
   m_TagString: Untagged
@@ -444,29 +444,6 @@ CharacterController:
   m_StepOffset: 0.3
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0, z: 0}
---- !u!136 &789876833
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 789876831}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 2
-  m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!23 &789876834
 MeshRenderer:
@@ -579,6 +556,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: Project.Player::Project.Player.PlayerStateMachine
   actor: {fileID: 789876837}
   inputReader: {fileID: 789876838}
+  locomotion: {fileID: 789876840}
+--- !u!114 &789876840
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 789876831}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 97b162540ecd7a64496197d94832b9be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Project.Player::Project.Player.PlayerLocomotion
+  walkSpeed: 2.5
+  sprintSpeed: 5
+  strafeSpeed: 2
+  rotateSpeed: 720
+  gravity: -20
+  controller: {fileID: 789876832}
+  cameraTransform: {fileID: 1249528645}
 --- !u!1 &997430323
 GameObject:
   m_ObjectHideFlags: 0

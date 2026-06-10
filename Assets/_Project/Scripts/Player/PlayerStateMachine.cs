@@ -22,8 +22,12 @@ namespace Project.Player
         [Header("입력")]
         [SerializeField] private PlayerInputReader inputReader;
 
-        // M1-A는 Idle만 인스턴스화한다. Move/Dodge 상태 인스턴스는 각각 M1-B/M1-C에서 등록.
+        [Header("이동")]
+        [SerializeField] private PlayerLocomotion locomotion;
+
+        // 상태 인스턴스는 Start에서 1회 생성해 재사용(매 전이마다 new 하면 GC 부담 + 상태 보유 데이터 유실).
         private IdleState _idle;
+        private MoveState _move;
 
         /// <summary>현재 활성 상태. 외부(디버그/테스트)는 읽기만.</summary>
         public IPlayerState CurrentState { get; private set; }
@@ -33,7 +37,16 @@ namespace Project.Player
 
         private void Start()
         {
-            _idle = new IdleState(this, inputReader);
+            // 인스펙터 배선이 빠져도 같은 오브젝트의 컴포넌트는 자동 회수(설정 누락 방어).
+            // 그래도 null이면 의존이 진짜 없는 것 — 침묵 대신 즉시 에러로 드러낸다.
+            if (locomotion == null) locomotion = GetComponent<PlayerLocomotion>();
+            if (inputReader == null) inputReader = GetComponent<PlayerInputReader>();
+
+            if (locomotion == null)
+                Debug.LogError("[PlayerStateMachine] PlayerLocomotion 미배선 — 같은 GameObject에 PlayerLocomotion 컴포넌트를 추가하거나 인스펙터 슬롯을 채워라.", this);
+
+            _idle = new IdleState(this, inputReader, locomotion);
+            _move = new MoveState(this, inputReader, locomotion);
             ChangeState(_idle);
         }
 
@@ -52,7 +65,8 @@ namespace Project.Player
             CurrentState.OnEnter();   // 3) 새 상태 진입 훅
         }
 
-        // --- M1-B+ 전이 진입점(상태들이 호출). 지금은 Idle만 존재하므로 빈 헬퍼 미정의. ---
+        // --- 전이 진입점(상태들이 호출). 마일스톤마다 상태가 늘면 여기에 헬퍼 추가. ---
         public void ToIdle() => ChangeState(_idle);
+        public void ToMove() => ChangeState(_move);
     }
 }
