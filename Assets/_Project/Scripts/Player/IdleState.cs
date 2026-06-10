@@ -29,6 +29,13 @@ namespace Project.Player
 
         public void Tick()
         {
+            // 회피는 이동/대기보다 우선 — 입력이 큐에 있으면 즉시 Dodge로(엣지 트리거, 1회 소비).
+            if (_input.ConsumeDodge())
+            {
+                _sm.ToDodge();
+                return;
+            }
+
             // 정지 중에도 중력은 유지해야 바닥에 붙는다(공중 진입/경사 대비).
             _loco.Stop();
 

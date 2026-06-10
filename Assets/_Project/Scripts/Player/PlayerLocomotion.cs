@@ -50,12 +50,7 @@ namespace Project.Player
         /// <param name="sprint">Sprint 홀드 여부.</param>
         public void Move(Vector2 moveInput, bool sprint)
         {
-            // 입력을 카메라 기준 월드 방향으로 변환. 카메라 forward/right를 XZ로 투영(Y 제거)해야
-            // 카메라가 아래를 봐도 캐릭터가 땅으로 처박히지 않는다.
-            Vector3 camFwd = Flatten(cameraTransform.forward);
-            Vector3 camRight = Flatten(cameraTransform.right);
-            Vector3 worldDir = camFwd * moveInput.y + camRight * moveInput.x;
-            worldDir = Vector3.ClampMagnitude(worldDir, 1f); // 대각 입력 과속 방지
+            Vector3 worldDir = CameraRelative(moveInput);
 
             // TODO(M1-E): 락온 시 worldDir 그대로 이동하되 회전은 보스 방향 고정(strafe), 속도=strafeSpeed.
             //             지금은 락온 타겟이 없어 free-look 분기만 동작.
@@ -77,6 +72,36 @@ namespace Project.Player
         {
             ApplyGravity();
             controller.Move(Vector3.up * (_verticalVel * Time.deltaTime));
+        }
+
+        /// <summary>
+        /// 입력 벡터(-1~1)를 카메라 기준 월드 방향(XZ 평면, 정규화)으로 변환.
+        /// 카메라 forward/right를 XZ로 투영(Y 제거)해야 카메라가 아래를 봐도 캐릭터가 땅으로 처박히지 않는다.
+        /// Move와 Dodge가 공유하는 변환(회피 방향 산출도 같은 camera-relative 기준).
+        /// </summary>
+        public Vector3 CameraRelative(Vector2 moveInput)
+        {
+            Vector3 camFwd = Flatten(cameraTransform.forward);
+            Vector3 camRight = Flatten(cameraTransform.right);
+            Vector3 worldDir = camFwd * moveInput.y + camRight * moveInput.x;
+            return Vector3.ClampMagnitude(worldDir, 1f); // 대각 입력 과속 방지
+        }
+
+        /// <summary>
+        /// 회피 이동 1프레임. <see cref="Move"/>와 달리 입력이 아니라 Dodge 상태가 정한 고정 방향·속도로
+        /// 강제 이동시킨다(구르기/백스텝). 같은 CharacterController·중력을 재사용해 이동 물리를 한곳에 응집.
+        /// </summary>
+        /// <param name="worldDir">이동 월드 방향(정규화 전제). 방향 구르기=입력방향, 백스텝=-forward.</param>
+        /// <param name="speed">이동 속도(m/s). DodgeConfig가 거리/구동시간으로 환산.</param>
+        /// <param name="rotateToDir">true면 진행 방향을 바라보게 회전(방향 구르기). 백스텝은 false(바라보는 방향 유지).</param>
+        public void DodgeMove(Vector3 worldDir, float speed, bool rotateToDir)
+        {
+            if (rotateToDir && worldDir.sqrMagnitude > 0.0001f)
+                RotateToward(worldDir);
+
+            ApplyGravity();
+            Vector3 velocity = worldDir.normalized * speed + Vector3.up * _verticalVel;
+            controller.Move(velocity * Time.deltaTime);
         }
 
         private void RotateToward(Vector3 worldDir)

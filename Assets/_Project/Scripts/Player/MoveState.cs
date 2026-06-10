@@ -29,6 +29,13 @@ namespace Project.Player
 
         public void Tick()
         {
+            // 회피는 이동보다 우선 — 이동 중 회피 입력이 들어오면 즉시 Dodge로 전이.
+            if (_input.ConsumeDodge())
+            {
+                _sm.ToDodge();
+                return;
+            }
+
             // 입력이 끊기면 Idle로 복귀. 임계값은 스틱 드리프트/미세 입력 무시용(Idle 전이 판정과 동일 기준).
             if (_input.MoveIntent.sqrMagnitude <= 0.01f)
             {
