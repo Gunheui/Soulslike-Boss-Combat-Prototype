@@ -37,6 +37,16 @@ namespace Project.Player
         // 중력 누적 속도(음수). 접지 시 작은 음수로 리셋해 경사/계단에서 바닥에 밀착시킨다.
         private float _verticalVel;
 
+        // 이번 프레임의 수평 이동 속도(월드 XZ, m/s). Move/Stop/DodgeMove가 갱신한다.
+        private Vector3 _planarVelocity;
+
+        /// <summary>
+        /// 이번 프레임 수평 이동 속도(월드 XZ, m/s). <see cref="PlayerAnimationDriver"/>가 읽어
+        /// 로코모션 애니 파라미터를 구동하는 <b>속도 단일 진실원</b> — 쓰기는 이 컴포넌트만 한다.
+        /// 중력(Y)은 제외(애니는 수평 이동만 본다).
+        /// </summary>
+        public Vector3 PlanarVelocity => _planarVelocity;
+
         /// <summary>
         /// 락온 타겟(없으면 null). <see cref="LockOnSystem"/>이 설정한다. null이 아니면 이동/정지/회피 전반에서
         /// 진행 방향이 아니라 이 타겟을 바라본다(facing-override) — strafe·백스텝의 기준 = "타겟을 본 채".
@@ -75,8 +85,9 @@ namespace Project.Player
                     RotateToward(worldDir);   // free-look은 진행 방향을 바라봄
             }
 
+            _planarVelocity = worldDir * speed;   // 애니 브리지가 읽는 단일 진실원
             ApplyGravity();
-            Vector3 velocity = worldDir * speed + Vector3.up * _verticalVel;
+            Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
             controller.Move(velocity * Time.deltaTime);
         }
 
@@ -88,6 +99,7 @@ namespace Project.Player
             // 정지 중에도 락온이면 타겟을 계속 바라본다 — 멈춰 선 채로도 보스를 마주봐야 백스텝/strafe 기준이 선다.
             if (LockOnTarget != null) FaceTarget();
 
+            _planarVelocity = Vector3.zero;   // 정지 → 애니도 idle로 수렴
             ApplyGravity();
             controller.Move(Vector3.up * (_verticalVel * Time.deltaTime));
         }
@@ -122,8 +134,9 @@ namespace Project.Player
             else if (rotateToDir && worldDir.sqrMagnitude > 0.0001f)
                 RotateToward(worldDir);
 
+            _planarVelocity = worldDir.normalized * speed;   // 회피 이동도 애니 브리지로 노출
             ApplyGravity();
-            Vector3 velocity = worldDir.normalized * speed + Vector3.up * _verticalVel;
+            Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
             controller.Move(velocity * Time.deltaTime);
         }
 

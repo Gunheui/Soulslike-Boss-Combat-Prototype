@@ -6,40 +6,42 @@ namespace Project.Player
 {
     /// <summary>
     /// 락온 상태를 Cinemachine 카메라로 반영하는 드라이버. <see cref="LockOnSystem.OnTargetChanged"/>를
-    /// 구독해, 락온 시 플레이어+타겟을 한 화면에 담는 전용 vcam으로 전환하고 해제 시 free-look으로 되돌린다.
+    /// 구독해, 락온 중에는 free-look vcam(CM_Player)의 OrbitalFollow recentering을 켜 카메라가
+    /// 플레이어 뒤(=타겟 방향)로 따라돌게 하고, 해제 시 recentering만 끈다.
     ///
     /// <b>왜 LockOnSystem과 분리하나</b> = 엔진 의존(Unity.Cinemachine)을 이 드라이버 한 곳에 가둔다.
     /// LockOnSystem은 Cinemachine을 몰라 EditMode 테스트에서 자유롭고, 카메라 연출만 여기서 갈아끼운다
     /// (관심사 분리 — 상태=로직 / 드라이버=연출).
     ///
-    /// <b>전환 방식</b> = 락온 vcam GameObject를 켜고/끈다. 켜진 동안 free-look vcam보다 Priority가 높게
-    /// 씬에서 설정돼 있어, CinemachineBrain이 자동으로 블렌딩한다. 끄면 free-look으로 복귀.
-    /// (Transform LookAt 수동 폴백은 폐기 — DoD.)
+    /// <b>왜 락온 전용 vcam이 아니라 단일 vcam + recentering인가</b> (엘든링 방식) = 이전의 2-vcam
+    /// priority 블렌딩은 두 vcam의 position 모델이 달라(고정 FollowOffset vs 궤도) 락온 토글 때마다
+    /// 카메라 위치가 출렁였다. 단일 vcam은 락온 중에도 <i>같은 궤도 위 회전</i>만 일어나 position 점프가
+    /// 원천적으로 없고, 축 Value가 연속이라 해제 순간 보던 시점이 그대로 유지된다(옛 각도 복귀 없음).
+    /// 해제 시 yaw를 역산해 동기화하던 코드도 통째로 불필요해졌다.
+    ///
+    /// <b>동작 원리</b> = CM_Player OrbitalFollow의 RecenteringTarget=TrackingTarget이라, recentering이
+    /// 켜지면 HorizontalAxis.Center가 매 프레임 "플레이어 forward의 뒤"로 갱신된다. 락온 중에는
+    /// <see cref="PlayerLocomotion"/>의 FaceTarget이 플레이어를 타겟으로 돌려세우므로, 카메라는
+    /// 자동으로 타겟 방향 azimuth로 수렴한다 — 타겟 위치를 여기서 직접 다룰 필요가 없다.
     /// </summary>
     public class LockOnCameraDriver : MonoBehaviour
     {
         [Header("참조")]
         [SerializeField] private LockOnSystem lockOn;
-        [Tooltip("락온 전용 CinemachineCamera. free-look vcam보다 Priority 높게 설정. 시작 시 비활성.")]
-        [SerializeField] private CinemachineCamera lockVcam;
-        [Tooltip("플레이어+타겟을 담는 타겟 그룹. lockVcam의 Tracking/LookAt 대상으로 씬에서 배선.")]
-        [SerializeField] private CinemachineTargetGroup targetGroup;
-        [Tooltip("free-look vcam(CM_Player)의 OrbitalFollow. 락온 해제 시 이 궤도를 현재 카메라 포즈로 ForceCameraPosition해 끊김 없이 이어가게 한다.")]
-        [SerializeField] private CinemachineOrbitalFollow freeLookOrbital;
+        [Tooltip("CM_Player의 OrbitalFollow. 락온 중 수평/수직 recentering을 켠다.")]
+        [SerializeField] private CinemachineOrbitalFollow orbital;
+        [Tooltip("CM_Player의 카메라 입력 컨트롤러. 락온 중 우스틱 카메라 조작 차단(엘든링식).")]
+        [SerializeField] private CinemachineInputAxisController cameraInput;
 
-        [Header("타겟 그룹 가중치 — 프레이밍 튜닝값")]
-        [Tooltip("동적 추가되는 타겟(보스)의 그룹 내 가중치/반경. 플레이어 멤버는 씬에서 멤버0으로 미리 배선.")]
-        [SerializeField] private float targetWeight = 1f;
-        [SerializeField] private float targetRadius = 1.5f;
-
-        // 그룹에 동적으로 끼운 현재 타겟 멤버 — 해제/교체 시 정확히 이것만 제거.
-        private Transform _dynamicMember;
+        [Header("튜닝값")]
+        [Tooltip("락온 중 카메라가 타겟 방향 azimuth에 도달하는 시간(s). 작을수록 빳빳하게 추종.")]
+        [SerializeField] private float recenterTime = 0.75f;
 
         private void Awake()
         {
             if (lockOn == null) lockOn = GetComponent<LockOnSystem>();
-            // 시작은 항상 free-look(락온 vcam off). 씬 저장 상태와 무관하게 정규화.
-            if (lockVcam != null) lockVcam.gameObject.SetActive(false);
+            // 시작은 항상 free-look. 씬 저장 상태와 무관하게 recentering off로 정규화.
+            if (orbital != null) SetRecentering(false);
         }
 
         private void OnEnable()
@@ -54,40 +56,33 @@ namespace Project.Player
 
         private void Apply(CombatActor target)
         {
-            // 1) 이전 동적 멤버 제거(있다면). 플레이어(멤버0)는 건드리지 않는다.
-            if (targetGroup != null && _dynamicMember != null)
-            {
-                targetGroup.RemoveMember(_dynamicMember);
-                _dynamicMember = null;
-            }
+            bool locked = target != null;
 
-            // 2) 새 타겟을 그룹에 추가.
-            if (target != null && targetGroup != null)
-            {
-                _dynamicMember = target.transform;
-                targetGroup.AddMember(_dynamicMember, targetWeight, targetRadius);
-            }
+            // 락온 중 우스틱 카메라 조작 차단. recentering은 OrbitalFollow가 자체 구동하므로 이 컴포넌트를
+            // 꺼도 죽지 않는다 — 오히려 입력이 살아 있으면 축 Value 변화 감지(TrackValueChange)가
+            // recentering을 매 프레임 취소하므로 반드시 꺼야 한다.
+            if (cameraInput != null) cameraInput.enabled = !locked;
 
-            // 3) 해제 시: free-look 궤도를 현재(락온) 카메라 각도로 동기화.
-            //    안 하면 free-look이 락온 전 옛 수평축 값으로 얼어있어, 복귀 블렌딩이 그 옛 각도로 되돌아간다
-            //    ("기억한 위치 복귀"). 여기서 미리 맞춰두면 락온 프레이밍에서 자연스레 이어진다.
-            if (target == null)
-                SyncFreeLookToCurrentView();
-
-            // 4) 락온 vcam 토글 → Brain이 free-look ↔ 락온 cam 블렌딩.
-            if (lockVcam != null)
-                lockVcam.gameObject.SetActive(target != null);
+            if (orbital != null) SetRecentering(locked);
         }
 
-        // 해제 직전 카메라(=락온 cam 출력) 포즈를 free-look 궤도에 그대로 심는다.
-        // ForceCameraPosition이 그 위치/회전에서 궤도 수평·수직 축을 역산(InferAxesFromPosition) →
-        // 복귀 블렌딩 시 CM_Player가 이미 같은 포즈라 점프가 사라진다. 수동 삼각함수보다 정확(피치 포함).
-        private void SyncFreeLookToCurrentView()
+        private void SetRecentering(bool on)
         {
-            if (freeLookOrbital == null || Camera.main == null) return;
+            // Wait=0 = "입력 멈춘 지 0초 후" = 매 프레임 즉시 추종. 씬에 저장된 Wait/Time은 무시하고
+            // 드라이버가 단일 출처로 덮어쓴다(튜닝값 recenterTime 한 곳만 만지면 되게).
+            var s = new InputAxis.RecenteringSettings { Enabled = on, Wait = 0f, Time = recenterTime };
+            orbital.HorizontalAxis.Recentering = s;
+            // 수직(피치)도 함께 — 극단 앵글로 올려보다 락온해도 씬 Center(17.5°)로 정규화돼 프레이밍이
+            // 일관된다. 같은 Time을 줘 수평/수직이 동시에 도달, 호가 자연스럽다.
+            orbital.VerticalAxis.Recentering = s;
 
-            Transform cam = Camera.main.transform;
-            freeLookOrbital.ForceCameraPosition(cam.position, cam.rotation);
+            if (!on)
+            {
+                // 잔류 recentering 속도/상태 정리. Value는 건드리지 않는다 — 그래서 해제 순간
+                // 카메라가 보던 시점이 그대로 유지된다(옛 각도 복귀 없음).
+                orbital.HorizontalAxis.CancelRecentering();
+                orbital.VerticalAxis.CancelRecentering();
+            }
         }
     }
 }
