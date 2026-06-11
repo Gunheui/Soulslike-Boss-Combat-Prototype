@@ -24,6 +24,8 @@ namespace Project.Player
         [SerializeField] private CinemachineCamera lockVcam;
         [Tooltip("플레이어+타겟을 담는 타겟 그룹. lockVcam의 Tracking/LookAt 대상으로 씬에서 배선.")]
         [SerializeField] private CinemachineTargetGroup targetGroup;
+        [Tooltip("free-look vcam(CM_Player)의 OrbitalFollow. 락온 해제 시 이 궤도를 현재 카메라 포즈로 ForceCameraPosition해 끊김 없이 이어가게 한다.")]
+        [SerializeField] private CinemachineOrbitalFollow freeLookOrbital;
 
         [Header("타겟 그룹 가중치 — 프레이밍 튜닝값")]
         [Tooltip("동적 추가되는 타겟(보스)의 그룹 내 가중치/반경. 플레이어 멤버는 씬에서 멤버0으로 미리 배선.")]
@@ -66,9 +68,26 @@ namespace Project.Player
                 targetGroup.AddMember(_dynamicMember, targetWeight, targetRadius);
             }
 
-            // 3) 락온 vcam 토글 → Brain이 free-look ↔ 락온 cam 블렌딩.
+            // 3) 해제 시: free-look 궤도를 현재(락온) 카메라 각도로 동기화.
+            //    안 하면 free-look이 락온 전 옛 수평축 값으로 얼어있어, 복귀 블렌딩이 그 옛 각도로 되돌아간다
+            //    ("기억한 위치 복귀"). 여기서 미리 맞춰두면 락온 프레이밍에서 자연스레 이어진다.
+            if (target == null)
+                SyncFreeLookToCurrentView();
+
+            // 4) 락온 vcam 토글 → Brain이 free-look ↔ 락온 cam 블렌딩.
             if (lockVcam != null)
                 lockVcam.gameObject.SetActive(target != null);
+        }
+
+        // 해제 직전 카메라(=락온 cam 출력) 포즈를 free-look 궤도에 그대로 심는다.
+        // ForceCameraPosition이 그 위치/회전에서 궤도 수평·수직 축을 역산(InferAxesFromPosition) →
+        // 복귀 블렌딩 시 CM_Player가 이미 같은 포즈라 점프가 사라진다. 수동 삼각함수보다 정확(피치 포함).
+        private void SyncFreeLookToCurrentView()
+        {
+            if (freeLookOrbital == null || Camera.main == null) return;
+
+            Transform cam = Camera.main.transform;
+            freeLookOrbital.ForceCameraPosition(cam.position, cam.rotation);
         }
     }
 }

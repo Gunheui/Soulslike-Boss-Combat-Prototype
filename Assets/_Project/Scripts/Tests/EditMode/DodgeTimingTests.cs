@@ -87,12 +87,14 @@ namespace Project.Tests.EditMode
         public void DodgeConfig_EaseOut_IntegralEqualsDistance()
         {
             // 속도 프로필 적분(=총 이동거리)이 distance(3.5m)와 일치해야 함 — ease-out이 거리를 보존.
+            // 중점(midpoint)합으로 적분: 선형 감속 프로필이라 중점법은 정확(좌측합은 감소함수에서
+            // 매 스텝 과대평가해 ~peak/2·dt만큼 편향 → 거짓 실패하므로 쓰지 않는다).
             var cfg = DodgeConfig.Default;
             float dt = 1f / 600f; // 미세 스텝으로 수치적분
             float dist = 0f;
             for (float t = 0f; t < cfg.moveDuration; t += dt)
-                dist += cfg.SpeedAt(t) * dt;
-            Assert.AreEqual(3.5f, dist, 0.02f, "ease-out 적분 거리 ≈ 3.5m");
+                dist += cfg.SpeedAt(t + dt * 0.5f) * dt;
+            Assert.AreEqual(3.5f, dist, 1e-3f, "ease-out 적분 거리 ≈ 3.5m");
         }
     }
 }

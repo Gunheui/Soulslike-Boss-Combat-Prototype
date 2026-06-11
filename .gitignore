@@ -57,6 +57,20 @@ _workspace_prev/
 Docs/
 
 # ============================================
-# 아트 정책: 추후 결정 (스토어 에셋 도입 시 여기에 경로 추가)
-#   예) Assets/_Project/Art/ThirdParty/
+# 유료 Asset Store 에셋 — 저작권상 공개 레포에 재배포 금지 (push 제외)
+#   클론한 사람은 Asset Store에서 직접 구매·임포트해야 함(README에 목록).
+#   폴더 + 상위 .meta 둘 다 무시. 새 유료 에셋 임포트 시 여기에 경로 추가.
 # ============================================
+/Assets/Knight Errant/
+/Assets/Knight Errant.meta
+/Assets/Kevin Iglesias/
+/Assets/Kevin Iglesias.meta
+/Assets/CaliberCreations/
+/Assets/CaliberCreations.meta
+
+# 보스(M5 임포트 예정) — MalberS Unka the Dragon. 임포트되는 실제 폴더명으로 확인·조정:
+/Assets/MalberS Animations/
+/Assets/MalberS Animations.meta
+
+# 내 산출물(_Project/)은 추적 유지. AnimatorController가 위 벤더 클립을 GUID 참조 →
+# 에셋 없는 클론에선 참조 끊김(정상, 구매·임포트 시 복구).
