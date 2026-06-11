@@ -34,12 +34,24 @@ namespace Project.Player
         // --- 1회성 엣지 입력(읽으면 소비) ---
         private bool _dodgeQueued;
         private bool _attackQueued;
+        private bool _lockOnQueued;
 
         /// <summary>회피 입력이 큐에 있으면 true 반환 후 소비(엣지 트리거 — 한 번 눌림에 한 번만 회피).</summary>
         public bool ConsumeDodge()
         {
             if (!_dodgeQueued) return false;
             _dodgeQueued = false;
+            return true;
+        }
+
+        /// <summary>
+        /// 락온 토글 입력이 큐에 있으면 true 반환 후 소비. 회피처럼 1회성 엣지 —
+        /// LockOnSystem이 받아 "락온 중이면 해제, 아니면 획득"으로 토글한다(M1-E).
+        /// </summary>
+        public bool ConsumeLockOn()
+        {
+            if (!_lockOnQueued) return false;
+            _lockOnQueued = false;
             return true;
         }
 
@@ -71,6 +83,7 @@ namespace Project.Player
             _controls.Player.Guard.canceled += OnGuardReleased;
             _controls.Player.Sprint.performed += OnSprintPressed;
             _controls.Player.Sprint.canceled += OnSprintReleased;
+            _controls.Player.LockOn.performed += OnLockOn;
         }
 
         private void OnEnable() => _controls.Player.Enable();
@@ -112,5 +125,11 @@ namespace Project.Player
 
         private void OnSprintPressed(InputAction.CallbackContext ctx) => SprintHeld = true;
         private void OnSprintReleased(InputAction.CallbackContext ctx) => SprintHeld = false;
+
+        private void OnLockOn(InputAction.CallbackContext ctx)
+        {
+            _lockOnQueued = true;
+            Debug.Log("[Input] LockOn toggle");
+        }
     }
 }

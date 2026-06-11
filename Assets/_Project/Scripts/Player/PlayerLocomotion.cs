@@ -18,7 +18,7 @@ namespace Project.Player
         [Header("속도 (m/s) — T1.4 튜닝값")]
         [SerializeField] private float walkSpeed = 2.5f;
         [SerializeField] private float sprintSpeed = 5.0f;
-        // strafeSpeed는 락온 스트레이프(M1-E)용. 지금은 미사용 — 락온 타겟이 없어 facing-override가 비활성.
+        [Tooltip("락온 중 이동 속도. 타겟을 바라본 채 옆/뒤로 도는 strafe — 보행보다 느려 신중한 거리 조절.")]
         [SerializeField] private float strafeSpeed = 2.0f;
 
         [Header("회전")]
@@ -37,6 +37,13 @@ namespace Project.Player
         // 중력 누적 속도(음수). 접지 시 작은 음수로 리셋해 경사/계단에서 바닥에 밀착시킨다.
         private float _verticalVel;
 
+        /// <summary>
+        /// 락온 타겟(없으면 null). <see cref="LockOnSystem"/>이 설정한다. null이 아니면 이동/정지/회피 전반에서
+        /// 진행 방향이 아니라 이 타겟을 바라본다(facing-override) — strafe·백스텝의 기준 = "타겟을 본 채".
+        /// 이 컴포넌트가 '어디를 보는가'의 단일 진실이라, Move/Dodge 상태 코드는 락온을 몰라도 된다.
+        /// </summary>
+        public Transform LockOnTarget { get; set; }
+
         private void Awake()
         {
             if (controller == null) controller = GetComponent<CharacterController>();
@@ -52,13 +59,21 @@ namespace Project.Player
         {
             Vector3 worldDir = CameraRelative(moveInput);
 
-            // TODO(M1-E): 락온 시 worldDir 그대로 이동하되 회전은 보스 방향 고정(strafe), 속도=strafeSpeed.
-            //             지금은 락온 타겟이 없어 free-look 분기만 동작.
             // TODO(M2 T2.x): sprint 중 스태미나 -8/s 소모, 0이면 walkSpeed 강제(현재는 무한 질주).
-            float speed = sprint ? sprintSpeed : walkSpeed;
-
-            if (worldDir.sqrMagnitude > 0.0001f)
-                RotateToward(worldDir);
+            float speed;
+            if (LockOnTarget != null)
+            {
+                // 락온 = strafe. 이동 방향과 무관하게 타겟을 바라본 채 옆/뒤로 돈다. sprint 분기는 보류
+                //  (락온 중 스프린트=락온 해제 질주는 스코프 밖, M2+ 검토).
+                speed = strafeSpeed;
+                FaceTarget();
+            }
+            else
+            {
+                speed = sprint ? sprintSpeed : walkSpeed;
+                if (worldDir.sqrMagnitude > 0.0001f)
+                    RotateToward(worldDir);   // free-look은 진행 방향을 바라봄
+            }
 
             ApplyGravity();
             Vector3 velocity = worldDir * speed + Vector3.up * _verticalVel;
@@ -70,6 +85,9 @@ namespace Project.Player
         /// </summary>
         public void Stop()
         {
+            // 정지 중에도 락온이면 타겟을 계속 바라본다 — 멈춰 선 채로도 보스를 마주봐야 백스텝/strafe 기준이 선다.
+            if (LockOnTarget != null) FaceTarget();
+
             ApplyGravity();
             controller.Move(Vector3.up * (_verticalVel * Time.deltaTime));
         }
@@ -96,12 +114,25 @@ namespace Project.Player
         /// <param name="rotateToDir">true면 진행 방향을 바라보게 회전(방향 구르기). 백스텝은 false(바라보는 방향 유지).</param>
         public void DodgeMove(Vector3 worldDir, float speed, bool rotateToDir)
         {
-            if (rotateToDir && worldDir.sqrMagnitude > 0.0001f)
+            // 락온 중 회피 방향 보정(M1-D 이월): rotateToDir을 무시하고 타겟을 계속 바라본다.
+            // → 옆구르기가 캐릭터를 돌려세워 락온 프레이밍을 깨지 않고, 입력 방향으로 미끄러진다.
+            //   중립 백스텝(-forward)은 타겟을 본 채라 자연히 "타겟 반대로" 물러난다.
+            if (LockOnTarget != null)
+                FaceTarget();
+            else if (rotateToDir && worldDir.sqrMagnitude > 0.0001f)
                 RotateToward(worldDir);
 
             ApplyGravity();
             Vector3 velocity = worldDir.normalized * speed + Vector3.up * _verticalVel;
             controller.Move(velocity * Time.deltaTime);
+        }
+
+        // 락온 타겟을 향해 회전(XZ 평면). 타겟이 머리 위/발밑이어도 캐릭터가 기울지 않도록 Y를 평탄화.
+        private void FaceTarget()
+        {
+            Vector3 dir = Flatten(LockOnTarget.position - transform.position);
+            if (dir.sqrMagnitude > 0.0001f)
+                RotateToward(dir);
         }
 
         private void RotateToward(Vector3 worldDir)
