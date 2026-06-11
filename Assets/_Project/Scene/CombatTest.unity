@@ -637,6 +637,10 @@ MonoBehaviour:
   freeLookRecenterWait: 0.1
   freeLookRecenterTime: 3
   moveThreshold: 0.2
+  lateralOffsetLockOn: 0.6
+  lateralOffsetFree: 0.6
+  lateralRefSpeed: 2
+  lateralSmoothTime: 0.35
 --- !u!114 &789876843
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -31,6 +31,19 @@ namespace Project.Player
     /// 매 프레임 갱신 — free-look은 기존(진행 방향 뒤)과 동일하고, 락온은 몸 회전과 <b>무관하게</b> 항상
     /// 타겟 방향 뒤로 수렴한다. 덕분에 회피로 몸이 구르는 방향을 향해도 카메라가 휩쓸리지 않아,
     /// 락온 중엔 회피에도 recentering을 끄지 않고 연속 추종한다(동결→재무장 2단 끊김 제거).
+    ///
+    /// <b>좌우 프레이밍 오프셋</b> (엘든링식) = 좌우 이동(strafe) 시 캐릭터가 화면에서 이동 방향 쪽으로
+    /// 살짝 치우치고, 멈추면 중앙으로 복귀한다. 스무딩된 스칼라 하나(_lateral, 카메라 우측 기준 m)를
+    /// 두 지점에 동시 적용해 모드별로 다른 경로로 같은 효과를 낸다:
+    /// <list type="bullet">
+    /// <item><b>pivot 위치</b>(Follow) — 락온 경로. 카메라 위치가 옆으로 밀리면 RotationComposer가 보스를
+    ///   화면 중앙에 재조준하므로 플레이어만 반대쪽으로 화면 이동(보스 프레이밍 유지).</item>
+    /// <item><b>look pivot</b>(free-look LookAt) — free-look 경로. pivot만 밀면 composer가 플레이어를
+    ///   도로 중앙에 재조준해 효과가 0이 된다. 조준점도 같은 양만큼 밀어 프레임 전체를 평행이동시켜야
+    ///   캐릭터가 화면에서 치우친다. 락온 중엔 LookAt=보스라 이 경로는 무효(자연 분기).</item>
+    /// </list>
+    /// 신호는 입력이 아니라 <b>실제 strafe 속도</b>(PlanarVelocity·카메라 right) — 가감속과 자연 동기.
+    /// 회피 중엔 목표 0으로 두어 고속 회피 이동이 카메라를 좌우로 휩쓰는 것을 막는다.
     /// </summary>
     public class PlayerCameraDriver : MonoBehaviour
     {
@@ -62,6 +75,19 @@ namespace Project.Player
         [SerializeField] private float freeLookRecenterTime = 1.0f;
         [Tooltip("이 속도(m/s) 초과로 이동할 때만 free-look 추종을 켠다. 멈춰 서면 현재 각도 유지.")]
         [SerializeField] private float moveThreshold = 0.2f;
+        [Tooltip("진행 방향이 카메라 정면과 이 각도(°) 이상 벌어지면(=카메라 쪽으로 걸어오면) 수평 추종을 끈다. " +
+                 "camera-relative 입력과 recentering이 서로를 쫓는 피드백(빙글빙글 원/8자 회전) 차단. 엘든링도 동일하게 카메라를 향해 달릴 땐 추종 안 함.")]
+        [SerializeField] private float recenterBlockAngle = 110f;
+
+        [Header("좌우 프레이밍 오프셋 (엘든링식)")]
+        [Tooltip("락온 시 최대 치우침(m). strafe에서 캐릭터가 이동 방향 쪽으로 이만큼 화면 이동(보스는 중앙 유지).")]
+        [SerializeField] private float lateralOffsetLockOn = 0.6f;
+        [Tooltip("free-look 시 최대 치우침(m). 락온보다 은은하게.")]
+        [SerializeField] private float lateralOffsetFree = 0.35f;
+        [Tooltip("이 측면 속도(m/s)에서 최대 오프셋에 도달. strafe 속도와 맞추면 strafe 중 항상 최대치.")]
+        [SerializeField] private float lateralRefSpeed = 2f;
+        [Tooltip("오프셋 스무딩 시간(s, SmoothDamp). 클수록 느슨하게 따라붙고 복귀도 느리다.")]
+        [SerializeField] private float lateralSmoothTime = 0.35f;
 
         // 현재 락온 여부(Apply가 갱신). Update가 프로필 선택에 쓴다.
         private bool _locked;
@@ -77,6 +103,17 @@ namespace Project.Player
         private Transform _pivot;
         // 락온 타겟 transform 캐시(Apply가 갱신). LateUpdate의 pivot 회전 산출용.
         private Transform _targetTransform;
+        // free-look 조준점(런타임 생성, 락온 해제 시 vcam.LookAt). 위치=_defaultLookAt+측면 오프셋.
+        // _defaultLookAt(플레이어)을 직접 LookAt으로 쓰면 composer가 캐릭터를 항상 중앙에 재조준해
+        // 치우침 효과가 0이 되므로, 오프셋이 실린 대리 transform을 조준점으로 쓴다.
+        private Transform _lookPivot;
+        // 출력 카메라 캐시(Awake). 측면 오프셋의 "화면 좌우" 기준 = 이 카메라의 right(XZ 투영).
+        // Brain이 LateUpdate 마지막에 갱신하므로 여기서 읽는 값은 직전 프레임 — SmoothDamp이 흡수.
+        private Transform _camTransform;
+        // 측면 오프셋 현재값(m)·SmoothDamp 속도·마지막 유효 카메라 right(수직 시점 퇴화 가드).
+        private float _lateral;
+        private float _lateralVel;
+        private Vector3 _lastCamRight = Vector3.right;
 
         // 적용된 recentering 상태 스냅샷. 같은 프로필이면 재적용 생략(Equals 비교).
         private readonly struct RecenterProfile : System.IEquatable<RecenterProfile>
@@ -114,12 +151,26 @@ namespace Project.Player
                 _pivot = new GameObject("CameraRecenterPivot").transform;
                 _pivot.SetPositionAndRotation(transform.position, transform.rotation);
                 vcam.Follow = _pivot;
+
+                // free-look 조준점 대리 transform. 초기 위치=_defaultLookAt(오프셋 0)이라 시작 프레이밍
+                // 무변화. ⚠ LookAt 교체를 Apply에만 두면 첫 락온 토글 전까지 free-look 오프셋이 죽는다
+                // (Apply는 락온 변경 시에만 호출) — 여기서 즉시 교체.
+                if (_defaultLookAt != null)
+                {
+                    _lookPivot = new GameObject("CameraLookPivot").transform;
+                    _lookPivot.position = _defaultLookAt.position;
+                    vcam.LookAt = _lookPivot;
+                }
             }
+
+            // 측면 오프셋의 화면 좌우 기준 카메라(Brain이 붙은 출력 카메라).
+            _camTransform = Camera.main != null ? Camera.main.transform : null;
         }
 
         private void OnDestroy()
         {
             if (_pivot != null) Destroy(_pivot.gameObject);
+            if (_lookPivot != null) Destroy(_lookPivot.gameObject);
         }
 
         // LockOnSystem의 타겟 변경을 구독해 락온 프로필(우스틱 차단·댐핑)을 갈아끼운다.
@@ -146,7 +197,12 @@ namespace Project.Player
         {
             if (_pivot == null) return;
 
-            _pivot.position = transform.position;
+            Vector3 lateralOffset = ComputeLateralOffset();
+            _pivot.position = transform.position + lateralOffset;
+            // free-look 조준점도 같은 양만큼 평행이동 — 카메라 위치(pivot)와 조준(lookPivot)이 함께 밀려야
+            // 프레임이 통째로 이동해 캐릭터가 화면에서 치우친다(락온 중엔 LookAt=보스라 자동 무효).
+            if (_lookPivot != null && _defaultLookAt != null)
+                _lookPivot.position = _defaultLookAt.position + lateralOffset;
 
             if (_locked && _targetTransform != null)
             {
@@ -162,6 +218,36 @@ namespace Project.Player
                 // free-look: 몸 forward 그대로 미러 — 기존(TrackingTarget=플레이어) 동작과 동일.
                 _pivot.rotation = transform.rotation;
             }
+        }
+
+        // 좌우 프레이밍 오프셋 산출(카메라 right 방향 월드 벡터). LateUpdate에서 매 프레임 호출.
+        // 정지/회피 시 목표가 0이 되어 SmoothDamp이 중앙으로 부드럽게 복귀시킨다.
+        private Vector3 ComputeLateralOffset()
+        {
+            // 화면 좌우 기준 = 출력 카메라 right의 XZ 투영. 카메라가 수직을 보면 투영이 퇴화(0 수렴)
+            // — 그때는 마지막 유효값을 유지해 오프셋 방향이 튀지 않게 한다.
+            if (_camTransform != null)
+            {
+                Vector3 r = _camTransform.right;
+                r.y = 0f;
+                if (r.sqrMagnitude > 0.0001f) _lastCamRight = r.normalized;
+            }
+
+            // 목표 = 측면 속도 비율(-1~1) × 모드별 최대 오프셋. 입력이 아니라 실제 속도라 가감속과 동기.
+            // 회피 중엔 0 — 고속 회피 이동이 측면 속도로 잡혀 카메라가 좌우로 휩쓸리는 것을 막는다.
+            float target = 0f;
+            bool dodging = stateMachine != null && stateMachine.CurrentState is DodgeState;
+            if (!dodging && locomotion != null)
+            {
+                float amount = Mathf.Clamp(
+                    Vector3.Dot(locomotion.PlanarVelocity, _lastCamRight) / Mathf.Max(lateralRefSpeed, 0.01f),
+                    -1f, 1f);
+                // 부호: 프레임 중심(카메라+조준점)을 이동 '반대쪽'으로 밀어야 캐릭터가 이동 방향 쪽에 보인다.
+                target = -amount * (_locked ? lateralOffsetLockOn : lateralOffsetFree);
+            }
+
+            _lateral = Mathf.SmoothDamp(_lateral, target, ref _lateralVel, lateralSmoothTime);
+            return _lastCamRight * _lateral;
         }
 
         // 매 프레임 상태로부터 원하는 recentering 프로필을 고른다.
@@ -181,10 +267,25 @@ namespace Project.Player
             // free-look: 이동 중에만 수평 추종(진행 방향 뒤로 정렬). 멈추면 off로 현재 각도 유지.
             // 우스틱을 만지면 OrbitalFollow가 축 Value 변화를 감지해 recentering을 양보하므로(cameraInput
             // 살아 있음), 켜 둬도 조작을 방해하지 않는다. 수직은 free-look에서 건드리지 않는다(피치 보존).
+            // 단, 카메라 쪽으로 걸어올 땐 추종을 끈다 — recentering 목표(몸 forward 뒤)가 항상 ~180° 앞에
+            // 있는데 이동이 camera-relative라 카메라가 돌면 몸도 같이 돌아, 목표에 영원히 못 닿는 무한
+            // 추격(원 회전)이 되고 정후방 경계에선 최단경로 방향이 좌우로 뒤집혀 8자가 된다.
             bool moving = locomotion != null && locomotion.PlanarVelocity.sqrMagnitude > moveThreshold * moveThreshold;
-            return moving
+            return moving && !MovingTowardCamera()
                 ? new RecenterProfile(true, false, freeLookRecenterWait, freeLookRecenterTime)
                 : RecenterProfile.Off;
+        }
+
+        // 진행 방향이 카메라 정면에서 recenterBlockAngle(°) 이상 벌어졌는가(=카메라를 향해 이동 중인가).
+        // XZ 평면 비교 — 카메라가 수직을 보면 forward 투영이 퇴화하므로 false(추종 허용, 다음 프레임 복구).
+        private bool MovingTowardCamera()
+        {
+            if (_camTransform == null || locomotion == null) return false;
+            Vector3 camFwd = _camTransform.forward;
+            camFwd.y = 0f;
+            Vector3 vel = locomotion.PlanarVelocity;
+            if (camFwd.sqrMagnitude < 0.0001f || vel.sqrMagnitude < 0.0001f) return false;
+            return Vector3.Angle(camFwd, vel) > recenterBlockAngle;
         }
 
         private void Apply(CombatActor target)
@@ -193,10 +294,12 @@ namespace Project.Player
             _targetTransform = target != null ? target.transform : null;   // LateUpdate pivot 회전용 캐시
 
             // 카메라 '진짜 타겟 추적': 락온이면 vcam.LookAt=타겟 transform → RotationComposer가 그 점을
-            // 화면 중앙에 조준한다(몸/회피 회전과 무관하게 보스 고정). 해제면 _defaultLookAt(플레이어)로
-            // 복원 → free-look이 다시 캐릭터를 바라보며 돈다. (null로 두면 조준이 깨진다.)
+            // 화면 중앙에 조준한다(몸/회피 회전과 무관하게 보스 고정). 해제면 _lookPivot(플레이어+측면
+            // 오프셋 대리점)으로 복원 → free-look이 다시 캐릭터를 바라보며 돈다. (null로 두면 조준이 깨진다.)
             // 타겟은 Transform 하나라 보스 전체든 부위(다중 락온 포인트)든 코드 무변경 — 그저 가리키는 점만 바뀜.
-            if (vcam != null) vcam.LookAt = target != null ? target.transform : _defaultLookAt;
+            if (vcam != null)
+                vcam.LookAt = target != null ? target.transform
+                            : _lookPivot != null ? _lookPivot : _defaultLookAt;
 
             // 락온 중 우스틱 카메라 조작 차단. free-look은 우스틱이 살아 있어야 자유 궤도 + recentering 양보가 된다.
             if (cameraInput != null) cameraInput.enabled = !_locked;
