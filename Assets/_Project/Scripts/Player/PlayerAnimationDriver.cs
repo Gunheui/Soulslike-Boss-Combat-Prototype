@@ -22,13 +22,21 @@ namespace Project.Player
         [SerializeField] private PlayerLocomotion loco;
 
         [Header("블렌드 댐핑")]
-        [Tooltip("파라미터 보간 시간(초). 급정거/방향전환 시 애니가 튀지 않게 부드럽게 수렴.")]
-        [SerializeField] private float dampTime = 0.1f;
+        // 가속 램프의 주체는 PlayerLocomotion(속도 자체가 부드럽게 오른다) — 이 dampTime은 1프레임
+        // jitter만 제거하는 보조값. 크게 잡으면(예: 0.5) 물리 속도와 따로 놀아 foot-slide를 만든다.
+        [Tooltip("파라미터 보간 시간(초). jitter 제거용 최소값. 가속 곡선은 PlayerLocomotion이 담당.")]
+        [SerializeField] private float dampTime = 0.05f;
 
         // 문자열 대신 해시로 SetFloat — 매 프레임 호출이라 문자열 룩업 비용 제거.
         private static readonly int MoveXHash = Animator.StringToHash("MoveX");
         private static readonly int MoveYHash = Animator.StringToHash("MoveY");
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
+        // 락온 = strafe 서브트리 전환 게이트(bool). 회피 = 전용 Dodge 클립 1회 재생(trigger).
+        private static readonly int LockedOnHash = Animator.StringToHash("LockedOn");
+        private static readonly int DodgeHash = Animator.StringToHash("Dodge");
+        // 회피 클립 분기(엘든링 규칙): 이동 입력 있으면 방향 구르기, 없으면 제자리 백스텝.
+        // DodgeBack=true → Standing Dodge Backward, false → Running Dive Roll.
+        private static readonly int DodgeBackHash = Animator.StringToHash("DodgeBack");
 
         private void Awake()
         {
@@ -56,7 +64,26 @@ namespace Project.Player
             animator.SetFloat(MoveYHash, local.z, dampTime, Time.deltaTime);
             animator.SetFloat(SpeedHash, loco.PlanarVelocity.magnitude, dampTime, Time.deltaTime);
 
-            // 회피 중엔 PlanarVelocity가 피크(~15 m/s)라 run으로 튄다 — 전용 Dodge 클립+AE는 F3에서.
+            // 락온이면 strafe 서브트리(상체 정면 고정·하체 스텝)로 전환. facing=타겟이라 velocity가
+            // 자동으로 옆/뒤 축으로 로컬화돼 MoveX/MoveY가 strafe 6방향에 그대로 대응한다.
+            // 단 락온 sprint 중엔 free-look 서브트리 — 몸이 진행 방향을 보므로(strafe 깨짐) local.z≈속력이
+            // 되어 전방 달리기 클립이 그대로 재생된다(옆걸음 전력질주 모션 방지, 새 애니 작업 0).
+            animator.SetBool(LockedOnHash, loco.LockOnTarget != null && !loco.IsLockOnSprint);
+        }
+
+        /// <summary>
+        /// 회피 전용 클립을 1회 재생(Any → Dodge 트리거). <see cref="DodgeState"/>가 진입 시 호출한다.
+        /// 회피 중 PlanarVelocity 피크(~15 m/s)가 로코모션 블렌드를 Run으로 밀던 문제를 덮는다 —
+        /// Dodge 상태에 있는 동안 MoveX/MoveY/Speed는 블렌드에 영향 없음. i-frame은 타이머가 권한
+        /// (이 트리거는 표현만, 전투 결정성 무관).
+        /// </summary>
+        /// <param name="back">true면 백스텝(Standing Dodge Backward), false면 방향 구르기(Running Dive Roll).</param>
+        public void PlayDodge(bool back)
+        {
+            if (animator == null) return;
+            // 트리거 전에 분기 bool을 먼저 세팅 — Any-State 전이가 같은 평가에서 올바른 클립을 고른다.
+            animator.SetBool(DodgeBackHash, back);
+            animator.SetTrigger(DodgeHash);
         }
     }
 }

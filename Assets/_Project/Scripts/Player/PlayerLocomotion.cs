@@ -21,6 +21,12 @@ namespace Project.Player
         [Tooltip("락온 중 이동 속도. 타겟을 바라본 채 옆/뒤로 도는 strafe — 보행보다 느려 신중한 거리 조절.")]
         [SerializeField] private float strafeSpeed = 2.0f;
 
+        [Header("가속")]
+        // 물리 속도가 가속의 주체 — 애니 블렌드는 이 속도를 읽기만 한다(종속). 둘이 같은 곡선을
+        // 공유해야 발이 안 미끄러진다(Unity Starter Assets ThirdPersonController 관례).
+        [Tooltip("가속/감속 수렴 속도. 클수록 빠르게 목표 속도 도달(Unity 관례, 10≈0.3s). 물리·애니 공용 곡선.")]
+        [SerializeField] private float speedChangeRate = 10f;
+
         [Header("회전")]
         [Tooltip("이동 방향으로 도는 각속도(°/s). free-look에선 진행 방향을 바라보게 회전.")]
         [SerializeField] private float rotateSpeed = 720f;
@@ -54,6 +60,13 @@ namespace Project.Player
         /// </summary>
         public Transform LockOnTarget { get; set; }
 
+        /// <summary>
+        /// 락온 중 sprint 질주 여부(이번 프레임, Move가 갱신). 락온 sprint는 strafe를 깨고 진행 방향으로
+        /// 몸을 돌려 달린다(엘든링/P의 거짓 패턴 — 락온은 카메라/타겟팅만 고정, 이동 잠금 아님).
+        /// <see cref="PlayerAnimationDriver"/>가 읽어 strafe/전방달리기 서브트리를 고른다.
+        /// </summary>
+        public bool IsLockOnSprint { get; private set; }
+
         private void Awake()
         {
             if (controller == null) controller = GetComponent<CharacterController>();
@@ -71,10 +84,18 @@ namespace Project.Player
 
             // TODO(M2 T2.x): sprint 중 스태미나 -8/s 소모, 0이면 walkSpeed 강제(현재는 무한 질주).
             float speed;
-            if (LockOnTarget != null)
+            IsLockOnSprint = LockOnTarget != null && sprint && worldDir.sqrMagnitude > 0.0001f;
+            if (IsLockOnSprint)
             {
-                // 락온 = strafe. 이동 방향과 무관하게 타겟을 바라본 채 옆/뒤로 돈다. sprint 분기는 보류
-                //  (락온 중 스프린트=락온 해제 질주는 스코프 밖, M2+ 검토).
+                // 락온 sprint = strafe를 깨고 진행 방향으로 몸을 돌려 질주(free-look 달리기와 동일 경로).
+                //  락온 타겟·카메라는 유지(카메라 pivot이 타겟 방향 기준이라 몸 회전 무관). sprint를 떼면
+                //  아래 strafe 분기의 FaceTarget이 보스로 재정렬한다.
+                speed = sprintSpeed;
+                RotateToward(worldDir);
+            }
+            else if (LockOnTarget != null)
+            {
+                // 락온 = strafe. 이동 방향과 무관하게 타겟을 바라본 채 옆/뒤로 돈다.
                 speed = strafeSpeed;
                 FaceTarget();
             }
@@ -85,7 +106,12 @@ namespace Project.Player
                     RotateToward(worldDir);   // free-look은 진행 방향을 바라봄
             }
 
-            _planarVelocity = worldDir * speed;   // 애니 브리지가 읽는 단일 진실원
+            // 목표 속력으로 램프(Unity Starter Assets 패턴) — 방향은 즉시, 속력만 가속.
+            // worldDir이 아날로그 입력 크기를 보존(부분 스틱=부분 속도). 물리·애니 공용 곡선.
+            float curSpeed = _planarVelocity.magnitude;
+            float newSpeed = Mathf.Lerp(curSpeed, speed, Time.deltaTime * speedChangeRate);
+            _planarVelocity = worldDir * newSpeed;   // 애니 브리지가 읽는 단일 진실원
+
             ApplyGravity();
             Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
             controller.Move(velocity * Time.deltaTime);
@@ -96,12 +122,23 @@ namespace Project.Player
         /// </summary>
         public void Stop()
         {
+            IsLockOnSprint = false;   // Move 외 구동기로 넘어오면 락온 sprint 종료 — 애니가 strafe로 복귀
             // 정지 중에도 락온이면 타겟을 계속 바라본다 — 멈춰 선 채로도 보스를 마주봐야 백스텝/strafe 기준이 선다.
             if (LockOnTarget != null) FaceTarget();
 
-            _planarVelocity = Vector3.zero;   // 정지 → 애니도 idle로 수렴
+            // 0으로 램프 감속 — 진행 방향 유지한 채 속력만 줄여 자연스러운 미끄럼 정지(급정거 아님).
+            // Idle이 매 Tick Stop()을 호출하므로 감속이 Idle에서 완주한다. 애니도 같이 idle로 수렴.
+            float curSpeed = _planarVelocity.magnitude;
+            if (curSpeed > 0.01f)
+                _planarVelocity = _planarVelocity.normalized
+                    * Mathf.Lerp(curSpeed, 0f, Time.deltaTime * speedChangeRate);
+            else
+                _planarVelocity = Vector3.zero;
+
             ApplyGravity();
-            controller.Move(Vector3.up * (_verticalVel * Time.deltaTime));
+            // 감속 중 잔여 수평 속도도 controller.Move에 실어야 글라이드가 적용된다(기존엔 중력만 이동).
+            Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
+            controller.Move(velocity * Time.deltaTime);
         }
 
         /// <summary>
@@ -126,18 +163,33 @@ namespace Project.Player
         /// <param name="rotateToDir">true면 진행 방향을 바라보게 회전(방향 구르기). 백스텝은 false(바라보는 방향 유지).</param>
         public void DodgeMove(Vector3 worldDir, float speed, bool rotateToDir)
         {
-            // 락온 중 회피 방향 보정(M1-D 이월): rotateToDir을 무시하고 타겟을 계속 바라본다.
-            // → 옆구르기가 캐릭터를 돌려세워 락온 프레이밍을 깨지 않고, 입력 방향으로 미끄러진다.
-            //   중립 백스텝(-forward)은 타겟을 본 채라 자연히 "타겟 반대로" 물러난다.
-            if (LockOnTarget != null)
-                FaceTarget();
-            else if (rotateToDir && worldDir.sqrMagnitude > 0.0001f)
+            IsLockOnSprint = false;   // 회피 진입 시 락온 sprint 종료(표현은 Dodge 클립이 덮는다)
+            // 방향 회피는 락온/free-look 공통으로 회피 방향을 바라보며 회전한다 — 몸이 회피 방향으로
+            //   돌아 전방 다이브 클립과 모션이 맞는다. 락온이어도 RotateToward로 부드럽게 돌고(OnEnter에서
+            //   즉시 스냅은 안 함), 회피가 끝나면 다음 상태의 FaceTarget이 보스로 재정렬한다.
+            //   락온 카메라는 보스를 직접 조준(RotationComposer)해 몸 회전과 무관하게 보스를 화면에 유지.
+            // 중립 백스텝(입력 없음)만 락온 시 보스를 본 채 물러난다(-forward 이동).
+            if (rotateToDir && worldDir.sqrMagnitude > 0.0001f)
                 RotateToward(worldDir);
+            else if (LockOnTarget != null)
+                FaceTarget();
 
             _planarVelocity = worldDir.normalized * speed;   // 회피 이동도 애니 브리지로 노출
             ApplyGravity();
             Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
             controller.Move(velocity * Time.deltaTime);
+        }
+
+        /// <summary>
+        /// 지정 방향으로 즉시 회전(스냅, XZ 평면). 회피 진입처럼 "그 프레임에 이미 그 방향을 보고
+        /// 있어야 하는" 동작용 — RotateToward(720°/s)로는 180° 전환에 0.25s가 걸려 첫 구간을
+        /// 이전 방향을 본 채 굴러 어색하다.
+        /// </summary>
+        public void SnapFacing(Vector3 worldDir)
+        {
+            Vector3 flat = Flatten(worldDir);
+            if (flat.sqrMagnitude > 0.0001f)
+                transform.rotation = Quaternion.LookRotation(flat, Vector3.up);
         }
 
         // 락온 타겟을 향해 회전(XZ 평면). 타겟이 머리 위/발밑이어도 캐릭터가 기울지 않도록 Y를 평탄화.

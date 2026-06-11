@@ -7,10 +7,12 @@ namespace Project.Player
     /// 그래야 i-frame 윈도우 계산(버그가 가장 잘 숨는 곳)을 EditMode 단위테스트로 격리 검증할 수 있다
     /// (M1-A가 ChangeState 순서를 EditMode로 검증한 것과 같은 전략).
     ///
-    /// 단위는 <b>초(seconds)</b>다. 표는 60fps 프레임으로 적혀 있지만(feel-params B), 실제 판정은
-    /// <c>Time.deltaTime</c> 누적 실시간 델타로 한다 — 프레임 드랍이 나도 무적 길이가 변하지 않는다.
+    /// 단위는 <b>초(seconds)</b>다. 실제 판정은 <c>Time.deltaTime</c> 누적 실시간 델타로 한다 —
+    /// 프레임 드랍이 나도 무적 길이가 변하지 않는다.
     ///
-    /// 타임라인(@60fps): f0 입력 → f3 i-frame ON → f14 i-frame OFF(지속 11f) → f23 모션종료.
+    /// <b>두 모션이 타이밍을 분리</b>한다(클립 길이가 다름, 30fps 기준):
+    /// - 구르기(Running Dive Roll, 30f=1.0s): startup 0.05s → i-frame ON → 0.45s OFF(지속 0.40s) → 1.0s 종료.
+    /// - 백스텝(Standing Dodge Backward, 15f=0.5s): startup 0.05s → ON → 0.15s OFF(지속 0.10s) → 0.5s 종료.
     /// </summary>
     [System.Serializable]
     public struct DodgeTiming
@@ -37,12 +39,20 @@ namespace Project.Player
         /// <summary>회피 모션이 끝났는가(이 시점에 다음 상태로 전이).</summary>
         public bool IsComplete(float t) => t >= TotalSeconds;
 
-        /// <summary>feel-params B 출발값(@60fps): startup 3f / iFrameEnd 14f / recovery 9f.</summary>
-        public static DodgeTiming Default60fps => new DodgeTiming
+        /// <summary>구르기(Dive Roll, 클립 1.0s) 타이밍: 무적 0.40s 지속, total 1.0s.</summary>
+        public static DodgeTiming Roll => new DodgeTiming
         {
-            startupSeconds   = 3f / 60f,   // 0.050s
-            iFrameEndSeconds = 14f / 60f,  // 0.233s (무적 11f 지속)
-            recoverySeconds  = 9f / 60f,   // 0.150s
+            startupSeconds   = 0.05f,  // 입력 후 무적 ON 지연
+            iFrameEndSeconds = 0.45f,  // 무적 OFF (지속 0.40s)
+            recoverySeconds  = 0.08f,  // total = 0.45 + 0.08 = 0.53s (튜닝: 후딜 단축)
+        };
+
+        /// <summary>백스텝(Standing Dodge Backward, 클립 0.5s) 타이밍: 무적 0.10s 지속, total 0.5s.</summary>
+        public static DodgeTiming Backstep => new DodgeTiming
+        {
+            startupSeconds   = 0.05f,  // 구르기와 공통 startup
+            iFrameEndSeconds = 0.15f,  // 무적 OFF (지속 0.10s)
+            recoverySeconds  = 0.35f,  // total = 0.15 + 0.35 = 0.5s
         };
     }
 
@@ -84,11 +94,20 @@ namespace Project.Player
         /// <summary>이동이 아직 진행 중인 경과시간인가(후딜 진입 전).</summary>
         public readonly bool IsMoving(float t) => t < moveDuration;
 
-        public static DodgeConfig Default => new DodgeConfig
+        /// <summary>구르기(이동 회피) 출발값: 거리 3.5m, 구동 0.45s(무적 종료까지 이동), 이후 후딜 정지.</summary>
+        public static DodgeConfig RollDefault => new DodgeConfig
         {
-            timing       = DodgeTiming.Default60fps,
+            timing       = DodgeTiming.Roll,
             distance     = 3.5f,
-            moveDuration = 14f / 60f, // 무적 종료까지 이동, 후딜 9f는 정지
+            moveDuration = 0.7f,   // 튜닝: 구동 연장(무적 종료 후에도 활주, 종료 시 Stop으로 컷)
+        };
+
+        /// <summary>백스텝(정지 회피) 출발값: 짧게 2.0m, 구동 0.25s. 짧은 무적(0.10s)이라 구동을 따로 둬 팝 방지.</summary>
+        public static DodgeConfig BackstepDefault => new DodgeConfig
+        {
+            timing       = DodgeTiming.Backstep,
+            distance     = 2.0f,
+            moveDuration = 0.4f,   // 튜닝: 구동 연장
         };
     }
 }

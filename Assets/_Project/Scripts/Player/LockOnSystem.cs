@@ -38,7 +38,7 @@ namespace Project.Player
         public CombatActor CurrentTarget { get; private set; }
         public bool IsLockedOn => CurrentTarget != null;
 
-        /// <summary>타겟 변경 방송(null=해제). <see cref="LockOnCameraDriver"/>·HUD(M7)가 구독해 반응.</summary>
+        /// <summary>타겟 변경 방송(null=해제). <see cref="PlayerCameraDriver"/>·HUD(M7)가 구독해 반응.</summary>
         public event System.Action<CombatActor> OnTargetChanged;
 
         private void Awake()
@@ -122,7 +122,7 @@ namespace Project.Player
         // 적 후보 수집: 자기 자신·동팀 제외. selfActor 미배선이면 팀 필터만 생략(자기 제외는 유지).
         private List<CombatActor> GatherEnemies()
         {
-            var all = FindObjectsByType<CombatActor>(FindObjectsSortMode.None);
+            var all = FindObjectsByType<CombatActor>(FindObjectsInactive.Exclude);
             var list = new List<CombatActor>(all.Length);
             foreach (var a in all)
             {
