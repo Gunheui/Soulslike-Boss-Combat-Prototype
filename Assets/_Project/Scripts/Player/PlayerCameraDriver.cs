@@ -5,45 +5,19 @@ using Project.Combat;
 namespace Project.Player
 {
     /// <summary>
-    /// 락온/free-look 상태를 Cinemachine 카메라로 반영하는 드라이버. CM_Player OrbitalFollow의
-    /// recentering·PositionDamping을 상태에 따라 갈아끼운다. recentering 설정의 <b>단일 출처</b>라,
-    /// 씬에 저장된 Recentering/Damping 값은 무시하고 여기 튜닝값이 매 전이마다 덮어쓴다.
+    /// 락온/free-look 상태를 CM_Player OrbitalFollow의 recentering·PositionDamping으로 반영하는 드라이버.
+    /// recentering 설정의 단일 출처 — 씬 저장값을 무시하고 매 전이마다 덮어쓴다.
     ///
-    /// <b>두 가지 추종 프로필</b>(둘 다 엘든링 free 카메라 관례):
-    /// <list type="bullet">
-    /// <item><b>free-look</b> — 이동 중에만 수평 recentering(Wait>0). 걸으면 카메라가 진행 방향 뒤로
-    ///   서서히 정렬되고, 멈추면 그 각도를 유지하며, 우스틱을 만지면 즉시 양보(자유 궤도). 수직(피치)은
-    ///   건드리지 않아 플레이어가 올려본 앵글이 보존된다.</item>
-    /// <item><b>락온</b> — 수평+수직 recentering 즉시(Wait=0) + 우스틱 차단. 플레이어가 타겟을 마주보므로
-    ///   (FaceTarget) 카메라는 타겟 방향 azimuth로, 피치는 씬 Center(17.5°)로 수렴해 프레이밍이 일관.</item>
-    /// </list>
+    /// 두 프로필(엘든링 free 카메라 관례): free-look = 이동 중에만 수평 recentering(멈추면 각도 유지,
+    /// 우스틱 양보, 피치 보존), 락온 = 수평+수직 즉시 추종 + 우스틱 차단(타겟 azimuth로 수렴).
     ///
-    /// <b>왜 LockOnSystem과 분리하나</b> = 엔진 의존(Unity.Cinemachine)을 이 드라이버 한 곳에 가둔다.
-    /// LockOnSystem은 Cinemachine을 몰라 EditMode 테스트에서 자유롭고, 카메라 연출만 여기서 갈아끼운다.
+    /// 왜 LockOnSystem과 분리 = 엔진 의존(Cinemachine)을 여기 가둬 LockOnSystem을 EditMode에서 자유롭게.
+    /// 왜 단일 vcam + recentering(엘든링) = 2-vcam priority 블렌딩은 토글마다 position이 점프해 출렁였다.
+    /// 단일 vcam은 같은 궤도 위 회전만 일어나 점프가 없고, 축 Value가 연속이라 해제 시 보던 시점이 유지된다.
     ///
-    /// <b>왜 단일 vcam + recentering인가</b> (엘든링 방식) = 2-vcam priority 블렌딩은 position 모델이
-    /// 달라 락온 토글마다 카메라가 출렁였다. 단일 vcam은 <i>같은 궤도 위 회전</i>만 일어나 position 점프가
-    /// 없고, 축 Value가 연속이라 해제 순간 보던 시점이 그대로 유지된다(옛 각도 복귀 없음).
-    ///
-    /// <b>동작 원리</b> = vcam의 TrackingTarget을 플레이어 몸이 아니라 런타임 생성 <b>recenter pivot</b>으로
-    /// 바꾼다(Awake). pivot은 위치=플레이어, 회전=락온이면 "플레이어→타겟" yaw / free-look이면 몸 forward
-    /// 미러(LateUpdate). RecenteringTarget=TrackingTarget이라 recentering Center가 "pivot forward 뒤"로
-    /// 매 프레임 갱신 — free-look은 기존(진행 방향 뒤)과 동일하고, 락온은 몸 회전과 <b>무관하게</b> 항상
-    /// 타겟 방향 뒤로 수렴한다. 덕분에 회피로 몸이 구르는 방향을 향해도 카메라가 휩쓸리지 않아,
-    /// 락온 중엔 회피에도 recentering을 끄지 않고 연속 추종한다(동결→재무장 2단 끊김 제거).
-    ///
-    /// <b>좌우 프레이밍 오프셋</b> (엘든링식) = 좌우 이동(strafe) 시 캐릭터가 화면에서 이동 방향 쪽으로
-    /// 살짝 치우치고, 멈추면 중앙으로 복귀한다. 스무딩된 스칼라 하나(_lateral, 카메라 우측 기준 m)를
-    /// 두 지점에 동시 적용해 모드별로 다른 경로로 같은 효과를 낸다:
-    /// <list type="bullet">
-    /// <item><b>pivot 위치</b>(Follow) — 락온 경로. 카메라 위치가 옆으로 밀리면 RotationComposer가 보스를
-    ///   화면 중앙에 재조준하므로 플레이어만 반대쪽으로 화면 이동(보스 프레이밍 유지).</item>
-    /// <item><b>look pivot</b>(free-look LookAt) — free-look 경로. pivot만 밀면 composer가 플레이어를
-    ///   도로 중앙에 재조준해 효과가 0이 된다. 조준점도 같은 양만큼 밀어 프레임 전체를 평행이동시켜야
-    ///   캐릭터가 화면에서 치우친다. 락온 중엔 LookAt=보스라 이 경로는 무효(자연 분기).</item>
-    /// </list>
-    /// 신호는 입력이 아니라 <b>실제 strafe 속도</b>(PlanarVelocity·카메라 right) — 가감속과 자연 동기.
-    /// 회피 중엔 목표 0으로 두어 고속 회피 이동이 카메라를 좌우로 휩쓰는 것을 막는다.
+    /// 핵심 트릭 둘(상세 메커니즘은 아래 멤버·메서드 주석): ① recenter pivot — vcam TrackingTarget을 몸이
+    /// 아닌 런타임 pivot으로 바꿔, 락온 중 회피로 몸이 돌아도 카메라는 타겟 방향 뒤를 유지(추종 끊김 제거).
+    /// ② 좌우 프레이밍 오프셋 — strafe 실속도로 프레임을 이동 반대쪽에 밀어 캐릭터를 화면 한쪽에 치우치게.
     /// </summary>
     public class PlayerCameraDriver : MonoBehaviour
     {

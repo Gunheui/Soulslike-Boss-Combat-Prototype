@@ -3,18 +3,10 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 회피 무적(i-frame)의 <b>명시적 소유자</b>. "지금 무적인가"를 한곳에서 켜고 끈다.
-    ///
-    /// 설계상 i-frame은 데미지 계산을 막는 게 아니라 <b>Hurtbox 콜라이더 자체를 비활성</b>해서
-    /// 구현한다(state-machines §2.1 [0]). 콜라이더가 꺼지면 보스 Hitbox의 OnTriggerEnter가
-    /// 애초에 안 불려 Resolve 단계까지 가지도 않는다 — 가장 단순하고 확실한 무적.
-    ///
-    /// ⚠ M1-D 시점엔 실 Hurtbox(M2 T2.6)가 없어 <see cref="hurtboxCollider"/>는 플레이스홀더
-    /// Trigger 콜라이더(Player_Placeholder 하위 Hurtbox child)를 가리킨다. M2에서 실 Hurtbox가
-    /// 같은 콜라이더에 얹히면 이 토글 메커니즘이 그대로 승계된다(코드 변경 불필요).
-    ///
-    /// 누수 방지 계약: <see cref="ForceVulnerable"/>를 Dodge.OnExit에서 무조건 호출 → AE 누락/상태
-    /// 강제이탈이 있어도 무적이 영구 잔류하지 않는다(영구 무적 버그 차단의 최종 방어선).
+    /// 회피 무적(i-frame)의 소유자. "지금 무적인가"를 한곳에서 켜고 끈다.
+    /// 무적 = <see cref="hurtboxCollider"/> 비활성 — 콜라이더가 꺼지면 보스 Hitbox의 OnTriggerEnter가 안 불려 Resolve까지 가지 않는다(state-machines §2.1).
+    /// ⚠ M1-D 시점엔 실 Hurtbox(M2 T2.6)가 없어 플레이스홀더 Trigger 콜라이더를 가리킨다. M2에서 실 Hurtbox가 같은 콜라이더에 얹히면 토글 메커니즘 그대로 승계.
+    /// 불변식: <see cref="ForceVulnerable"/>를 Dodge.OnExit에서 무조건 호출 → 무적 영구 잔류 차단.
     /// </summary>
     public class PlayerIFrame : MonoBehaviour
     {

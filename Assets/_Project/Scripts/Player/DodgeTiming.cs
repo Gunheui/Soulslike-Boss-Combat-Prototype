@@ -3,15 +3,10 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 회피(Dodge)의 <b>순수 타이밍</b> 정의. Unity 런타임에 의존하지 않는 값/함수만 담는다 —
-    /// 그래야 i-frame 윈도우 계산(버그가 가장 잘 숨는 곳)을 EditMode 단위테스트로 격리 검증할 수 있다
-    /// (M1-A가 ChangeState 순서를 EditMode로 검증한 것과 같은 전략).
-    ///
-    /// 단위는 <b>초(seconds)</b>다. 실제 판정은 <c>Time.deltaTime</c> 누적 실시간 델타로 한다 —
-    /// 프레임 드랍이 나도 무적 길이가 변하지 않는다.
-    ///
-    /// <b>두 모션이 타이밍을 분리</b>한다(클립 길이가 다름, 30fps 기준):
-    /// - 구르기(Running Dive Roll, 30f=1.0s): startup 0.05s → i-frame ON → 0.45s OFF(지속 0.40s) → 1.0s 종료.
+    /// 회피(Dodge)의 순수 타이밍 정의(Unity 런타임 미의존, EditMode 단위테스트 대상). 단위는 초.
+    /// 판정은 <c>Time.deltaTime</c> 누적 실시간 델타라 프레임 드랍이 나도 무적 길이가 불변.
+    /// 두 모션의 타이밍 출처(30fps 기준):
+    /// - 구르기(Running Dive Roll, 30f=1.0s): startup 0.05s → ON → 0.45s OFF(지속 0.40s) → 1.0s 종료.
     /// - 백스텝(Standing Dodge Backward, 15f=0.5s): startup 0.05s → ON → 0.15s OFF(지속 0.10s) → 0.5s 종료.
     /// </summary>
     [System.Serializable]

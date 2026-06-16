@@ -4,14 +4,8 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 락온 타겟 선택의 <b>순수 판정 로직</b>. Unity 객체(Camera/Transform/CombatActor)를 일절 만지지 않고
-    /// float 배열만 받아 "어느 후보를 고를지"를 인덱스로 답한다.
-    ///
-    /// 왜 actor가 아니라 인덱스인가 = CombatActor는 MonoBehaviour라 테스트에서 <c>new</c>로 못 만든다.
-    /// 그래서 거리/각도/화면X 같은 <i>측정값 배열</i>만 입력받아 선택 인덱스를 돌려주면,
-    /// <see cref="LockOnSystem"/>(글루)이 그 인덱스로 실제 후보를 집는다.
-    /// 덕분에 선택 규칙(범위 게이트·최근접 각도·좌우 전환)을 EditMode에서 카메라 없이 검증할 수 있다
-    /// (DodgeTiming struct와 같은 분리 전략).
+    /// 락온 타겟 선택의 순수 판정 로직(Unity 객체 미의존, EditMode 단위테스트 대상). float 측정값 배열만
+    /// 받아 선택 인덱스를 답하고, <see cref="LockOnSystem"/>이 그 인덱스로 실제 후보를 집는다.
     /// </summary>
     public static class LockOnTargeting
     {

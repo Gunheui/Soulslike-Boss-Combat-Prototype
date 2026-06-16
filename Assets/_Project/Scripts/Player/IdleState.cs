@@ -36,7 +36,7 @@ namespace Project.Player
                 return;
             }
 
-            // 정지 중에도 중력은 유지해야 바닥에 붙는다(공중 진입/경사 대비).
+            // 정지 중에도 중력 유지 → 바닥 밀착(공중 진입·경사 대비).
             _loco.Stop();
 
             if (_input.MoveIntent.sqrMagnitude > 0.01f)

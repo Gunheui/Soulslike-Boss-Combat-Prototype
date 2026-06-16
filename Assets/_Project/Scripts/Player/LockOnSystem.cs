@@ -5,19 +5,9 @@ using Project.Combat;
 namespace Project.Player
 {
     /// <summary>
-    /// 락온(타겟 고정) 시스템. 적 <see cref="CombatActor"/>를 가리키고, 범위를 벗어나면 자동 해제하며,
-    /// 좌우 전환을 지원한다.
-    ///
-    /// <b>왜 FSM 상태가 아니라 독립 컴포넌트인가</b> = 락온은 Idle/Move/Dodge/Attack 어느 상태에서나
-    /// 직교로 켜고 끈다. 상태로 만들면 모든 상태에 락온 분기가 번진다. 이 컴포넌트는 매 프레임 타겟만
-    /// 검증해 <see cref="PlayerLocomotion.LockOnTarget"/>에 꽂아주고, 상태들은 그대로 둔다(무변경).
-    ///
-    /// <b>왜 보스가 아니라 CombatActor인가</b> = Player 어셈블리는 Boss를 import하지 않는다(단방향 의존).
-    /// 보스를 Combat이 정의한 CombatActor로만 다뤄 경계를 깨지 않고 가리킨다(의존성 역전).
-    ///
-    /// ⚠ 프로토타입 스코프: 후보 수집은 획득/전환 시점에만 <see cref="Object.FindObjectsByType"/>로 전수
-    /// 조사한다(보스 1체, 매 프레임 아님 → 비용 무시 가능). 적이 많아지면 공간 쿼리(OverlapSphere)나
-    /// 등록 레지스트리로 교체할 자리 — 지금 만들지 않는다(과확장 금지).
+    /// 락온(타겟 고정) 시스템. 적 <see cref="CombatActor"/>를 가리키고, 범위 이탈 시 자동 해제하며,
+    /// 좌우 전환을 지원한다. 타겟을 <see cref="PlayerLocomotion.LockOnTarget"/>에 꽂아 상태들은 무변경으로 둔다.
+    /// ⚠ 후보 수집은 획득/전환 시점에만 <see cref="Object.FindObjectsByType"/>로 전수 조사 — 적이 늘면 공간 쿼리/레지스트리로 교체할 자리.
     /// </summary>
     public class LockOnSystem : MonoBehaviour
     {

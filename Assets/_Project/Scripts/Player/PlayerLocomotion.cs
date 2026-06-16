@@ -3,15 +3,8 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 플레이어의 실제 이동 물리. Move/Dodge 상태가 "구동기"로서 호출한다(상태는 전이 판정만,
-    /// 물리는 여기 한곳에 응집 — M1-D Dodge도 이 컴포넌트를 재사용).
-    ///
-    /// 왜 CharacterController인가 = 소울라이크 관례. Root Motion을 끄고 스크립트로 이동시켜야
-    /// 전투 애니메이션 이벤트(i-frame/히트박스) 타이밍이 이동 속도와 무관하게 결정적으로 유지된다.
-    /// Rigidbody는 물리 틱에 끌려가 이 결정성이 깨지고, 캐릭터 전용 계단/경사 처리도 CC가 내장한다.
-    ///
-    /// 이동은 항상 <b>카메라 상대(camera-relative)</b>다 — 입력 W는 "월드 +Z"가 아니라 "카메라가
-    /// 보는 앞". M1-B free-look 오비탈 카메라와 맞물려야 소울 조작감이 난다.
+    /// 플레이어의 실제 이동 물리. Move/Dodge 상태가 구동기로 호출한다(물리는 여기 한곳에 응집).
+    /// 이동은 항상 카메라 상대(camera-relative) — 입력 W는 월드 +Z가 아니라 카메라가 보는 앞.
     /// </summary>
     public class PlayerLocomotion : MonoBehaviour
     {
@@ -22,8 +15,7 @@ namespace Project.Player
         [SerializeField] private float strafeSpeed = 2.0f;
 
         [Header("가속")]
-        // 물리 속도가 가속의 주체 — 애니 블렌드는 이 속도를 읽기만 한다(종속). 둘이 같은 곡선을
-        // 공유해야 발이 안 미끄러진다(Unity Starter Assets ThirdPersonController 관례).
+        // 물리·애니 같은 가속 곡선 공유 → 발 미끄러짐 방지(Starter Assets ThirdPersonController 관례).
         [Tooltip("가속/감속 수렴 속도. 클수록 빠르게 목표 속도 도달(Unity 관례, 10≈0.3s). 물리·애니 공용 곡선.")]
         [SerializeField] private float speedChangeRate = 10f;
 
@@ -32,37 +24,28 @@ namespace Project.Player
         [SerializeField] private float rotateSpeed = 720f;
 
         [Header("중력")]
-        // CharacterController는 중력을 자동 적용하지 않는다 — 직접 누적해 바닥에 붙인다.
-        [SerializeField] private float gravity = -20f;
+        [SerializeField] private float gravity = -20f; // CharacterController는 중력 자동 적용 안 함
 
         [Header("참조")]
         [SerializeField] private CharacterController controller;
         [Tooltip("camera-relative 기준. 비우면 Camera.main으로 폴백(Cinemachine Brain이 Main Camera를 구동).")]
         [SerializeField] private Transform cameraTransform;
 
-        // 중력 누적 속도(음수). 접지 시 작은 음수로 리셋해 경사/계단에서 바닥에 밀착시킨다.
-        private float _verticalVel;
+        private float _verticalVel; // 접지 시 작은 음수 유지 → 경사·계단 바닥 밀착
 
-        // 이번 프레임의 수평 이동 속도(월드 XZ, m/s). Move/Stop/DodgeMove가 갱신한다.
-        private Vector3 _planarVelocity;
+        private Vector3 _planarVelocity; // 수평 이동 속도(월드 XZ). Move/Stop/DodgeMove가 갱신
 
-        /// <summary>
-        /// 이번 프레임 수평 이동 속도(월드 XZ, m/s). <see cref="PlayerAnimationDriver"/>가 읽어
-        /// 로코모션 애니 파라미터를 구동하는 <b>속도 단일 진실원</b> — 쓰기는 이 컴포넌트만 한다.
-        /// 중력(Y)은 제외(애니는 수평 이동만 본다).
-        /// </summary>
+        /// <summary>프레임별 수평 이동 속도(월드 XZ, m/s). 로코모션 애니 구동의 단일 진실원(중력 Y 제외).</summary>
         public Vector3 PlanarVelocity => _planarVelocity;
 
         /// <summary>
-        /// 락온 타겟(없으면 null). <see cref="LockOnSystem"/>이 설정한다. null이 아니면 이동/정지/회피 전반에서
-        /// 진행 방향이 아니라 이 타겟을 바라본다(facing-override) — strafe·백스텝의 기준 = "타겟을 본 채".
-        /// 이 컴포넌트가 '어디를 보는가'의 단일 진실이라, Move/Dodge 상태 코드는 락온을 몰라도 된다.
+        /// 락온 타겟(없으면 null, <see cref="LockOnSystem"/>이 설정). null이 아니면 이동/정지/회피에서
+        /// 진행 방향 대신 이 타겟을 바라본다(facing-override) — strafe·백스텝의 기준.
         /// </summary>
         public Transform LockOnTarget { get; set; }
 
         /// <summary>
-        /// 락온 중 sprint 질주 여부(이번 프레임, Move가 갱신). 락온 sprint는 strafe를 깨고 진행 방향으로
-        /// 몸을 돌려 달린다(엘든링/P의 거짓 패턴 — 락온은 카메라/타겟팅만 고정, 이동 잠금 아님).
+        /// 락온 중 sprint 질주 여부(이번 프레임, Move가 갱신). sprint면 strafe를 깨고 진행 방향으로 돌아 달린다.
         /// <see cref="PlayerAnimationDriver"/>가 읽어 strafe/전방달리기 서브트리를 고른다.
         /// </summary>
         public bool IsLockOnSprint { get; private set; }
@@ -110,7 +93,7 @@ namespace Project.Player
             // worldDir이 아날로그 입력 크기를 보존(부분 스틱=부분 속도). 물리·애니 공용 곡선.
             float curSpeed = _planarVelocity.magnitude;
             float newSpeed = Mathf.Lerp(curSpeed, speed, Time.deltaTime * speedChangeRate);
-            _planarVelocity = worldDir * newSpeed;   // 애니 브리지가 읽는 단일 진실원
+            _planarVelocity = worldDir * newSpeed;
 
             ApplyGravity();
             Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
@@ -174,7 +157,7 @@ namespace Project.Player
             else if (LockOnTarget != null)
                 FaceTarget();
 
-            _planarVelocity = worldDir.normalized * speed;   // 회피 이동도 애니 브리지로 노출
+            _planarVelocity = worldDir.normalized * speed;
             ApplyGravity();
             Vector3 velocity = _planarVelocity + Vector3.up * _verticalVel;
             controller.Move(velocity * Time.deltaTime);

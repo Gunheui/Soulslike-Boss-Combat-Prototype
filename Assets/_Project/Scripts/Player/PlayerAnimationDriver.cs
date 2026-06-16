@@ -4,14 +4,8 @@ namespace Project.Player
 {
     /// <summary>
     /// 로코모션 애니 브리지. <see cref="PlayerLocomotion"/>의 이동 속도를 읽어 Animator 블렌드 트리
-    /// 파라미터(MoveX/MoveY/Speed)로 흘려보낸다. 한 방향(velocity → Animator)으로만 읽어가므로
-    /// 상태/물리 코드는 Animator를 몰라도 된다(M1-C/D 관심사 분리 연장).
-    ///
-    /// <b>왜 별도 컴포넌트인가</b> = 이동 물리(Locomotion)와 표현(애니)을 분리하면 애니 시스템을
-    /// 갈아끼워도 전투 결정성(i-frame/히트박스 타이밍)이 영향받지 않는다. 브리지는 읽기 전용.
-    ///
-    /// <b>Root Motion OFF</b> = 클립은 in-place(제자리), 실제 이동은 CharacterController가 한다.
-    /// Root Motion을 켜면 애니가 위치를 밀어 전투 이벤트 타이밍이 이동 속도에 끌려간다(소울라이크 금기).
+    /// 파라미터(MoveX/MoveY/Speed)로 흘려보낸다(velocity → Animator 단방향, 읽기 전용).
+    /// ⚠ Root Motion OFF 전제 — 클립은 in-place, 이동은 CharacterController가 한다. 켜면 애니가 위치를 밀어 전투 이벤트 타이밍이 이동 속도에 끌려간다.
     /// </summary>
     public class PlayerAnimationDriver : MonoBehaviour
     {

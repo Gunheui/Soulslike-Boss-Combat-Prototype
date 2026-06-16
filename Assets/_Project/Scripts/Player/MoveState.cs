@@ -3,11 +3,8 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 이동 상태. 이동 입력이 있는 동안 머물며 매 Tick <see cref="PlayerLocomotion"/>을 구동한다.
-    ///
-    /// 상태는 "언제 들어오고 나가는가"만 판정하고, 실제 이동 물리는 Locomotion에 위임한다
-    /// (관심사 분리 — 같은 Locomotion을 Dodge 상태도 재사용).
-    /// M1-C 범위 전이: Move ↔ Idle 왕복만. Attack/Dodge/Guard/Hit 전이는 해당 마일스톤에서 추가.
+    /// 이동 상태. 이동 입력이 있는 동안 머물며 매 Tick <see cref="PlayerLocomotion"/>을 구동한다(물리는 Locomotion에 위임).
+    /// 현재 전이 범위: Move ↔ Idle ↔ Dodge. Attack/Guard/Hit는 해당 마일스톤에서 추가.
     /// </summary>
     public class MoveState : IPlayerState
     {

@@ -6,17 +6,8 @@ using Project.Combat;
 namespace Project.Tests.EditMode
 {
     /// <summary>
-    /// M2-A / T2.1·T2.2 DoD: 데미지 파이프라인의 "계약"을 못 박는다.
-    ///
-    /// 왜 아직 동작(Resolver/Health 로직)이 없는데 테스트하나 =
-    /// (1) <b>회귀 잠금</b>. DamageInfo 13필드·DamageResult 5필드·enum 값은 M2-B/M4/M5가
-    ///     의존할 고정 계약이다. 누가 리팩터 중 필드를 빼거나 enum을 건드리면 이 테스트가
-    ///     즉시 레드로 잡는다(컴파일만으론 "필드 누락"을 못 잡는 경우가 있다).
-    /// (2) <b>실행 가능한 스펙</b>. 인터페이스가 정말 구현 가능한지, info(입력)→result(출력)가
-    ///     단방향으로 흐르는지를 더미 구현으로 실증한다 = 뒤따르는 PlayerDamageResolver(M4)·
-    ///     Health(M2-B)가 "이렇게 끼우면 된다"의 레퍼런스.
-    ///
-    /// EditMode·순수 데이터라 Unity 런타임 없이 격리 검증(DodgeTiming/LockOnTargeting과 동일 전략).
+    /// M2-A / T2.1·T2.2 DoD: 데미지 파이프라인 계약을 검증 — DamageInfo 13필드·DamageResult 5필드·enum 값 집합 회귀 잠금,
+    /// 그리고 info(입력)→Resolver→result(출력)→Damageable의 단방향 흐름을 더미 구현으로 실증한다.
     /// </summary>
     public class DamageContractTests
     {

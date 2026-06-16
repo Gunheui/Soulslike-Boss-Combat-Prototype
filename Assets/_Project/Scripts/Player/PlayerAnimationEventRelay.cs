@@ -3,17 +3,9 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 애니메이션 이벤트(AE) 릴레이. AnimationEvent는 <b>Animator와 같은 GameObject</b>의 컴포넌트
-    /// 함수만 부를 수 있어, 모델 자식(Animator 보유)에 붙어 루트 <see cref="PlayerIFrame"/>로 포워딩한다.
-    ///
-    /// <b>A안 — i-frame 이중화의 안전망(단방향).</b> 무적창 on/off 권한은 <see cref="DodgeState"/>의
-    /// 타이머(<see cref="DodgeTiming"/> 3f~14f, EditMode 검증)가 갖는다. 이 릴레이가 하는 일은
-    /// <b>강제 해제(닫기)뿐</b> — 무적창을 다시 열지 않으므로 타이머와 충돌하지 않는다. Dodge 클립의
-    /// 회복 프레임에 <see cref="AE_ForceVulnerable"/> 이벤트를 심어, 타이머가 어떤 이유로 OnExit를
-    /// 못 타도 무적이 잔류하지 않게 하는 마지막 보강(무적 누수 0의 3차 방어선).
-    ///
-    /// 방어선 순서: 1차 <c>DodgeState.OnExit → ForceVulnerable</c> / 2차 타이머 IsComplete /
-    /// 3차 이 AE. 셋 다 같은 방향(닫기)이라 안전하게 중첩된다.
+    /// 애니메이션 이벤트(AE) 릴레이. AnimationEvent는 Animator와 같은 GameObject의 컴포넌트만 부를 수 있어,
+    /// 모델 자식(Animator 보유)에 붙어 루트 <see cref="PlayerIFrame"/>로 포워딩한다.
+    /// 불변식: 이 릴레이는 무적을 강제 해제(닫기)만 하고 다시 열지 않는다 — 타이머 권한(<see cref="DodgeState"/>)과 충돌하지 않는 안전망.
     /// </summary>
     public class PlayerAnimationEventRelay : MonoBehaviour
     {

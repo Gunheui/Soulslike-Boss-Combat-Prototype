@@ -4,12 +4,7 @@ using Project.Player;
 namespace Project.Tests.EditMode
 {
     /// <summary>
-    /// 회피 무적창(i-frame) 타이밍이 명세대로인지 못 박는다 — 구르기/백스텝 2개 프리셋 분리.
-    ///
-    /// 왜 순수 struct를 따로 떼어 테스트하나 = i-frame 윈도우 경계(언제 켜지고 언제 꺼지는가)는
-    /// 버그가 가장 잘 숨는 곳이고, 어긋나면 "무적 누수" 또는 "무적이 안 켜짐"이 된다. Unity 런타임
-    /// 없이 <see cref="DodgeTiming"/>의 시간→판정을 직접 먹여 경계를 고정한다.
-    ///
+    /// 회피 무적창(i-frame) 타이밍이 명세대로인지 검증 — 구르기/백스텝 2개 프리셋의 윈도우 경계 고정.
     /// 클립 30fps 기준:
     /// - 구르기(Roll, 0.53s): startup 0.05s / i-frame end 0.45s(지속 0.40s) / recovery 0.08s / total 0.53s.
     /// - 백스텝(Backstep, 0.5s): startup 0.05s / i-frame end 0.15s(지속 0.10s) / recovery 0.35s / total 0.5s.

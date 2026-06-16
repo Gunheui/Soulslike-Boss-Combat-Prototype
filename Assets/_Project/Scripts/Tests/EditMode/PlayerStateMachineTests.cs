@@ -6,15 +6,8 @@ using Project.Player;
 namespace Project.Tests.EditMode
 {
     /// <summary>
-    /// M1-A / T1.2 DoD: PlayerStateMachine.ChangeState가 항상
-    /// "이전.OnExit() → 새.OnEnter()" 순서로 전이함을 못 박는다.
-    ///
-    /// 왜 이걸 테스트로 박나 = 이 순서가 깨지면 떠나는 상태가 켠 것(예: 회피 i-frame)을
-    /// 끄기 전에 새 상태가 시작돼 무적 누수·자원 꼬임이 생긴다. 회귀로 누가 ChangeState를
-    /// "set 먼저, OnExit 나중"으로 바꾸면 이 테스트가 즉시 레드로 잡는다.
-    ///
-    /// EditMode라 MonoBehaviour.Start()는 안 돈다 → CurrentState가 null에서 출발하므로
-    /// 더미 상태 2개로 전이 경로만 순수 격리해 호출 순서를 기록·검증한다.
+    /// M1-A / T1.2 DoD: PlayerStateMachine.ChangeState가 항상 "이전.OnExit() → 새.OnEnter()" 순서로 전이함을 검증.
+    /// EditMode라 Start()가 안 돌아 CurrentState가 null에서 출발 — 더미 상태 2개로 전이 경로만 격리해 호출 순서를 기록·검증한다.
     /// </summary>
     public class PlayerStateMachineTests
     {

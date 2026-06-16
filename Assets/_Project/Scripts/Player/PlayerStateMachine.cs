@@ -5,18 +5,12 @@ namespace Project.Player
 {
     /// <summary>
     /// 플레이어 상태 머신. 현재 상태 1개를 들고, 매 프레임 그 상태의 Tick을 돌린다.
-    ///
-    /// 이 컴포넌트가 보장하는 단 하나의 불변식: <see cref="ChangeState"/>는 항상
-    /// <c>이전.OnExit() → 새.OnEnter()</c> 순서로 전이한다(T1.2 DoD 핵심).
-    /// 왜 이 순서가 생명인가 = 회피 i-frame을 켠 채 다른 상태로 새면 영구 무적 버그가 된다.
-    /// OnExit를 먼저 "반드시" 부르면 떠나는 상태가 자기가 켠 것을 끌 기회를 갖는다 →
-    /// 상태 누수 0(데드락/무적 누수 차단의 구조적 토대).
+    /// 불변식: <see cref="ChangeState"/>는 항상 <c>이전.OnExit() → 새.OnEnter()</c> 순서 — 어기면 i-frame 누수(영구 무적).
     /// </summary>
     public class PlayerStateMachine : MonoBehaviour
     {
         [Header("Combat 루트")]
-        // CombatActor 참조는 기능상 M1-D 락온/M2 데미지에서 본격 사용하지만, 지금 들고 있는 더 큰 이유는
-        // 'Player → Combat 단방향 의존'을 컴파일로 증명하기 위해서다(M0-A에서 빈 asmdef라 미생성됐던 검증).
+        // 본격 사용은 M1-D 락온/M2 데미지. 지금은 Player → Combat 단방향 의존을 컴파일로 고정하는 역할.
         [SerializeField] private CombatActor actor;
 
         [Header("입력")]
@@ -47,9 +41,8 @@ namespace Project.Player
         public CombatActor Actor => actor;
         public PlayerInputReader Input => inputReader;
 
-        // 회피 튜닝값 노출 — DodgeState가 회피 진입(OnEnter)마다 최신값을 읽어 런타임 Inspector
-        // 튜닝이 즉시 반영되게 한다. struct(값 타입)라 생성자에 한 번 넘기면 복사본이 굳어
-        // 런타임 수정이 안 먹는다(이 프로퍼티가 그 단절을 푼다). 20바이트 카피라 오버헤드 0.
+        // 회피 튜닝값 노출 — DodgeState가 진입마다 최신값을 읽어 런타임 Inspector 튜닝이 즉시 반영된다.
+        // struct라 생성자로 한 번 넘기면 복사본이 굳어 런타임 수정이 안 먹으므로 프로퍼티로 노출.
         public DodgeConfig RollConfig => rollConfig;
         public DodgeConfig BackstepConfig => backstepConfig;
 

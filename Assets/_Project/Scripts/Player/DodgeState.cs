@@ -3,15 +3,9 @@ using UnityEngine;
 namespace Project.Player
 {
     /// <summary>
-    /// 회피(Dodge) 상태. 가드불가 공격에 대응하는 비상 동사이자 i-frame(무적)의 주체.
-    ///
-    /// <b>타이머 단독 구동</b>(M1-D): 애니 클립이 없어 AE(AE_IFrameOn/Off·AE_AttackEnd)를 쏠
-    /// Animator가 아직 없다. 설계의 "AE + 타이머 이중화" 중 안전한 타이머 arm만 켜고 진행한다.
-    /// M1-F에서 클립이 들어오면 AE가 무적 토글/종료를 조기-컷으로 앞당기고, 이 타이머는 폴백으로
-    /// 잔존한다(AE 누락 시에도 데드락/무적 누수 0).
-    ///
-    /// 책임 분리: 이 상태는 "언제 무적이고 언제 끝나는가"(타이밍)만 판정하고, 무적 토글은
-    /// <see cref="PlayerIFrame"/>에, 이동 물리는 <see cref="PlayerLocomotion"/>에 위임한다.
+    /// 회피(Dodge) 상태. i-frame(무적) 타이밍 판정의 주체 — 무적 토글은 <see cref="PlayerIFrame"/>,
+    /// 이동 물리는 <see cref="PlayerLocomotion"/>에 위임한다.
+    /// 현재 타이머 단독 구동(M1-D): 클립이 없어 AE가 없다. M1-F에서 클립이 오면 AE가 조기-컷하고 이 타이머는 폴백으로 잔존(AE 누락 시에도 무적 누수 0).
     /// </summary>
     public class DodgeState : IPlayerState
     {

@@ -6,13 +6,7 @@ namespace Project.Player
     /// <summary>
     /// Input System 래퍼(<c>PlayerControls</c>)를 구독해 raw 입력을 전투 의미(intent)로 번역한다.
     /// M0-B의 임시 <c>InputProbe</c>를 대체하는 영구 컴포넌트.
-    ///
-    /// 왜 raw 키 폴링이 아니라 intent 계층인가 = 이후 두 시스템이 이 계층 위에 올라간다.
-    ///  ① 입력 버퍼: 공격 입력을 "큐잉"했다가 콤보 윈도우에서 소비(M3) — 그래서 단발 read가 아니라
-    ///     Consume 패턴(읽으면 소비되는 1회성 플래그)으로 노출한다.
-    ///  ② 퍼펙트가드 윈도우: 가드를 "누른 시각"에서 8f 안에 맞으면 PG(M4) — 그래서 GuardHeld(불리언)뿐
-    ///     아니라 <see cref="GuardPressedTime"/>(눌린 Time.time)을 지금부터 기록해 둔다.
-    /// 즉 M1-A는 이 두 미래 기능의 '기준점'만 미리 노출하고, 판정 로직 자체는 해당 마일스톤으로 이월한다.
+    /// 엣지 입력은 Consume 패턴(읽으면 소비)으로 노출 — 입력 버퍼(M3)·PG 윈도우(M4)의 기준점만 미리 두고 판정은 이월.
     /// </summary>
     public class PlayerInputReader : MonoBehaviour
     {
